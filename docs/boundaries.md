@@ -1,0 +1,3 @@
+# Version 0.1.0 boundaries
+
+Each JSON snapshot is self contained, even when previous content is unchanged; new_object_bytes is a content statistic, not the physical archive size saved. The host adapter caps a backup at 1 MiB of source bytes; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. A failed write retains the new partial directory for inspection. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.

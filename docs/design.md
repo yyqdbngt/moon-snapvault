@@ -1,11 +1,17 @@
-# Moon SnapVault architecture
+# Implemented architecture
 
-Status: development plan; functionality must be checked against release documentation.
+## Core
 
-目标：可靠地创建本地增量快照，证明恢复结果和备份内容一致。
+SHA-256 object identities; byte or UTF-8 text inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; full object integrity audits; verified restore plans. scripts/filesystem.mjs creates snapshots from real directories and restores real files.
 
-核心模块：文件扫描与规则；版本化清单；摘要与内容寻址；增量差异；快照提交；恢复计划及执行；完整性校验；中断恢复与 CLI。十月先采用文件级去重，暂不增加分块算法、压缩和远端存储。
+## Boundaries
 
-三个场景：源码目录备份与误删恢复；数据交付后的摘要核验；归档迁移后逐文件恢复比较。验证在独立临时目录中完成，源目录始终保留；扫描期间文件变化必须报告，不能记录为可靠快照。
+Each JSON snapshot is self contained, even when previous content is unchanged; new_object_bytes is a content statistic, not the physical archive size saved. The host adapter caps a backup at 1 MiB of source bytes; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. A failed write retains the new partial directory for inspection. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
 
-验收：一千文件/约定容量数据的新增、修改、删除、重复内容均有明确预期；完整恢复后路径集合与摘要和源版本相同。失败验证覆盖坏清单、丢失对象、恢复中断、越界路径和符号链接策略。恢复操作验证绝对目标在指定目录内。十月为本地备份工具，不宣称分布式一致性或加密存储。
+## Integration
+
+The core accepts semantic values and returns deterministic JSON-shaped reports. Host adapters handle files, network or processes; they invoke the compiled MoonBit engine. The CLI package declares `supported_targets = "js"`; other backends test the portable core.
+
+## Validation evidence
+
+Fixture cases are hand-checked assertions. Independent reference checks and integration scripts are runnable from a clean checkout. CI executes four core backends and host checks. Historical proposal targets are not release results.
