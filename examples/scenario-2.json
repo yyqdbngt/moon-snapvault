@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "a",
+      "text": "abc"
+    },
+    {
+      "path": "b",
+      "text": "abc"
+    }
+  ]
+}

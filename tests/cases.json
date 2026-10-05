@@ -1,0 +1,139 @@
+[
+  {
+    "name": "SHA256 known vector",
+    "request": {
+      "files": [
+        {
+          "path": "hello.txt",
+          "text": "abc"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/files/0/digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      "statistics/total_bytes": 3
+    },
+    "error": false
+  },
+  {
+    "name": "content deduplication",
+    "request": {
+      "files": [
+        {
+          "path": "a",
+          "text": "abc"
+        },
+        {
+          "path": "b",
+          "text": "abc"
+        }
+      ]
+    },
+    "expected": {
+      "statistics/unique_bytes": 3,
+      "statistics/deduplicated_bytes": 3
+    },
+    "error": false
+  },
+  {
+    "name": "binary zeros",
+    "request": {
+      "files": [
+        {
+          "path": "zero.bin",
+          "bytes": [
+            0,
+            255,
+            0
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "statistics/total_bytes": 3
+    },
+    "error": false
+  },
+  {
+    "name": "unsafe path ../escape",
+    "request": {
+      "files": [
+        {
+          "path": "../escape",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "unsafe path CON.txt",
+    "request": {
+      "files": [
+        {
+          "path": "CON.txt",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "unsafe path a//b",
+    "request": {
+      "files": [
+        {
+          "path": "a//b",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "unsafe path C:/x",
+    "request": {
+      "files": [
+        {
+          "path": "C:/x",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "unsafe path a/../b",
+    "request": {
+      "files": [
+        {
+          "path": "a/../b",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "case collision",
+    "request": {
+      "files": [
+        {
+          "path": "A",
+          "text": "x"
+        },
+        {
+          "path": "a",
+          "text": "y"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  }
+]
