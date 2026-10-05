@@ -1,0 +1,44 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "yyqdbngt/moon_snapvault"
+
+import {
+  "moonbitlang/core/debug",
+}
+
+// Values
+pub fn audit_snapshot(Value) -> Value raise
+
+pub fn create_snapshot(Array[Value], previous? : Value) -> Value raise
+
+pub fn diff_snapshots(Value, Value) -> Value raise
+
+pub fn digest(Bytes) -> String
+
+pub fn execute(Json) -> Json raise
+
+pub fn from_json(Json) -> Value
+
+pub fn run(Value) -> Value raise
+
+pub fn safe_path(String) -> Bool
+
+// Errors
+pub(all) suberror InputError {
+  InputError(String)
+} derive(Eq, Show)
+
+// Types and methods
+pub(all) enum Value {
+  Null
+  Bool(Bool)
+  Number(Double)
+  String(String)
+  Array(Array[Value])
+  Object(Map[String, Value])
+} derive(Eq, @debug.Debug)
+pub fn Value::stringify(Self) -> String
+pub fn Value::to_json(Self) -> Json
+
+// Type aliases
+
+// Traits
