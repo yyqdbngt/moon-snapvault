@@ -1,0 +1,32 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {backup, restore} from './filesystem.mjs';
+import {engine} from './engine.mjs';
+const base = fs.mkdtempSync(path.join(os.tmpdir(), 'snapvault-integration-'));
+try {
+  const source = path.join(base,'source'); fs.mkdirSync(source);
+  fs.mkdirSync(path.join(source,'nested'));
+  fs.writeFileSync(path.join(source,'nested/a.bin'),Buffer.from([0,255,1,2]));
+  fs.writeFileSync(path.join(source,'copy.bin'),Buffer.from([0,255,1,2]));
+  const one = path.join(base,'one.json');
+  const stats = backup(source,one);
+  assert.equal(stats.deduplicated_bytes,4);
+  const restored = path.join(base,'restored'); restore(one,restored);
+  assert.deepEqual(fs.readFileSync(path.join(restored,'nested/a.bin')),fs.readFileSync(path.join(source,'nested/a.bin')));
+  assert.throws(()=>restore(one,restored));
+  assert.throws(()=>backup(source,one));
+  assert.throws(()=>backup(source,path.join(source,'bad.json')));
+  fs.writeFileSync(path.join(source,'copy.bin'),'changed');
+  const two = path.join(base,'two.json'); backup(source,two,one);
+  const snapshot = JSON.parse(fs.readFileSync(two,'utf8'));
+  const diff = engine({operation:'diff',old:JSON.parse(fs.readFileSync(one,'utf8')),new:snapshot});
+  assert.equal(diff.modified.length,1);
+  const digest = snapshot.files[0].digest; snapshot.objects[digest][0] ^= 1;
+  assert.equal(engine({operation:'audit',snapshot}).valid,false);
+  const corrupt = path.join(base,'corrupt.json'); fs.writeFileSync(corrupt,JSON.stringify(snapshot));
+  const untouched = path.join(base,'untouched');
+  assert.throws(()=>restore(corrupt,untouched)); assert.equal(fs.existsSync(untouched),false);
+  console.log('Snapshot integration: binary restore, dedup, incremental diff, no overwrite, containment and corruption rejection passed');
+} finally { fs.rmSync(base,{recursive:true,force:true}); }
