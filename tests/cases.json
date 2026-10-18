@@ -135,5 +135,30 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "followup empty retention plan",
+    "request": {
+      "operation": "retention",
+      "snapshots": []
+    },
+    "expected": {
+      "plan_only": true,
+      "collectible_objects": [],
+      "live_bytes": 0
+    },
+    "error": false
+  },
+  {
+    "name": "followup unknown retention identity",
+    "request": {
+      "operation": "retention",
+      "snapshots": [],
+      "keep": [
+        "missing"
+      ]
+    },
+    "expected": {},
+    "error": true
   }
 ]
