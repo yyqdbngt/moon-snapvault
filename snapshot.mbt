@@ -304,6 +304,7 @@ pub fn create_snapshot(
 ///|
 pub fn run(request : Value) -> Value raise {
   match optional_str(get(request, "operation"), "create") {
+    "retention" => retention_plan(request)
     "create" =>
       create_snapshot(
         arr(get(request, "files")),
