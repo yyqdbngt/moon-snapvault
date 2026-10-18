@@ -122,7 +122,9 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
       raise InputError("invalid file size")
     }
     let mode = num(get(file, "mode"))
-    if mode < 0.0 || mode > 511.0 || mode.floor() != mode { raise InputError("invalid manifest file mode") }
+    if mode < 0.0 || mode > 511.0 || mode.floor() != mode {
+      raise InputError("invalid manifest file mode")
+    }
     let hash = str(get(file, "digest"))
     if hash.length() != 64 ||
       !hash
@@ -226,7 +228,7 @@ pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
 ///|
 pub fn create_snapshot(
   source : Array[Value],
-  previous? : Value = Null,
+  previous~ : Value = Null,
 ) -> Value raise {
   let objects : Map[String, Value] = Map([])
   let files : Array[Value] = []
