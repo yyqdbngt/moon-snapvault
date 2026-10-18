@@ -121,6 +121,8 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
     if size < 0.0 || size.floor() != size {
       raise InputError("invalid file size")
     }
+    let mode = num(get(file, "mode"))
+    if mode < 0.0 || mode > 511.0 || mode.floor() != mode { raise InputError("invalid manifest file mode") }
     let hash = str(get(file, "digest"))
     if hash.length() != 64 ||
       !hash
