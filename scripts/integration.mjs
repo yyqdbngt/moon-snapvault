@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {backup, restore} from './filesystem.mjs';
+import {backup, restore, squash} from './filesystem.mjs';
 import {engine} from './engine.mjs';
 
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'snapvault-integration-'));
@@ -82,6 +82,32 @@ try {
   assert.throws(() => restore(three, brokenTarget, [brokenFile, two]));
   assert.equal(fs.existsSync(brokenTarget), false);
 
+  // Squashing compacts the whole chain into one self-contained file that no
+  // longer needs its parents, and selects on the way out.
+  const squashedFile = path.join(base, 'squashed.json');
+  const squashStats = squash(three, squashedFile, [one, two]);
+  assert.equal(squashStats.chain_depth, 3);
+  assert.equal(read(squashedFile).parent, null);
+  const squashedTarget = path.join(base, 'squashed-out');
+  const squashedResult = restore(squashedFile, squashedTarget);
+  assert.equal(squashedResult.chain_depth, 1);
+  assert.deepEqual(fs.readFileSync(path.join(squashedTarget, 'nested/a.bin')), Buffer.from([9, 9, 9]));
+  // Squashing is idempotent: doing it again changes nothing.
+  const twiceFile = path.join(base, 'squashed-twice.json');
+  squash(squashedFile, twiceFile, []);
+  assert.equal(read(twiceFile).checksum, read(squashedFile).checksum);
+
+  // Selective restore writes only the requested subtree.
+  const partialTarget = path.join(base, 'partial-out');
+  const partial = restore(three, partialTarget, [one, two], ['nested']);
+  // nested/a.bin and nested/big.bin; copy.bin sits at the root and is skipped.
+  assert.equal(partial.files, 2);
+  assert.equal(partial.total_files, 3);
+  assert.ok(fs.existsSync(path.join(partialTarget, 'nested/a.bin')));
+  assert.equal(fs.existsSync(path.join(partialTarget, 'copy.bin')), false);
+  assert.throws(() => restore(three, path.join(base, 'partial-miss'), [one, two], ['nope']), /not found/);
+  assert.equal(fs.existsSync(path.join(base, 'partial-miss')), false);
+
   // Corruption inside the delta itself is caught the same way as before: swap
   // the stored payload for a different byte sequence so only the digest notices.
   const tampered = read(two);
@@ -130,7 +156,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, chain restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

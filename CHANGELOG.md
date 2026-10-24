@@ -28,6 +28,17 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Chain management
+
+- `squash` compacts a chain into one self-contained snapshot in any of the three
+  formats, keeping every reachable object exactly once and dropping the rest.
+  Without `format` the snapshot keeps its own. Squashing twice is a no-op, and
+  squashing to format 2 equals creating the same tree directly, byte for byte.
+- `restore` accepts `paths` and selects entries by whole component (`docs` covers
+  `docs/a.md`, `doc` covers nothing), reporting `selected` and `total_files`. A
+  path that matches nothing is an error, not a quiet partial restore.
+- Adapter: `squash` and `restore --path` subcommands.
+
 ### Snapshot format 2
 
 - Object payloads are base64 text instead of arrays of decimal byte values. A

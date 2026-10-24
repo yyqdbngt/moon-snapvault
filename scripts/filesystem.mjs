@@ -106,11 +106,34 @@ export function portablePaths(files) {
   }
 }
 
-export function restore(snapshotFile, destination, chain = []) {
+// Compacts a chain into one self-contained snapshot file. Only reachable objects
+// survive, so this is also the way to recover the space deltas leave behind.
+export function squash(snapshotFile, destination, chain = [], format = 3) {
+  const snapshot = readSnapshot(snapshotFile);
+  const parents = readChain(chain);
+  const result = send({operation: 'squash', snapshot, parents, format}, {
+    snapshot: JSON.stringify(snapshot).length,
+    chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
+  });
+  const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
+  const output = path.join(parent, path.basename(destination));
+  const tmp = output + '.' + randomUUID() + '.tmp';
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(result.snapshot), {flag: 'wx'});
+    fs.linkSync(tmp, output);
+  } finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
+  return {
+    ...result.statistics,
+    snapshot_bytes: fs.statSync(output).size,
+  };
+}
+
+export function restore(snapshotFile, destination, chain = [], paths = []) {
   // Verify the whole chain before creating the destination.
   const snapshot = readSnapshot(snapshotFile);
   const parents = readChain(chain);
-  const verified = send({operation: 'restore', snapshot, parents}, {
+  const requested = paths.length ? paths : undefined;
+  const verified = send({operation: 'restore', snapshot, parents, paths: requested}, {
     snapshot: JSON.stringify(snapshot).length,
     chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
   });
@@ -138,6 +161,7 @@ export function restore(snapshotFile, destination, chain = []) {
   }
   return {
     files: verified.files.length,
+    total_files: verified.total_files,
     verified: true,
     encoding: verified.encoding,
     format: verified.format,
@@ -148,15 +172,32 @@ export function restore(snapshotFile, destination, chain = []) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const [operation, source, destination, previous, ...chain] = process.argv.slice(2);
+    const [operation, source, destination, previous, ...rest] = process.argv.slice(2);
     if (!source || !destination) {
-      throw new Error('Usage: filesystem.mjs backup SOURCE SNAPSHOT [PREVIOUS [PARENT...]] | restore SNAPSHOT DEST [PARENT...]');
+      throw new Error([
+        'Usage:',
+        '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]]',
+        '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P ...]',
+        '  filesystem.mjs squash  SNAPSHOT DEST [PARENT...] [--format N]',
+      ].join('\n'));
     }
-    if (!['backup', 'restore'].includes(operation)) throw new Error('Unknown operation');
-    const result = operation === 'backup'
-      ? backup(source, destination, previous, chain)
+    const paths = [];
+    let format = 3;
+    const chain = [];
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === '--path') paths.push(rest[++i]);
+      else if (rest[i] === '--format') format = Number(rest[++i]);
+      else chain.push(rest[i]);
+    }
+    if (operation === 'backup') {
+      console.log(JSON.stringify(backup(source, destination, previous, chain)));
+    } else if (operation === 'restore') {
       // For restore the fourth argument starts the chain, not a previous file.
-      : restore(source, destination, [previous, ...chain]);
-    console.log(JSON.stringify(result));
+      console.log(JSON.stringify(restore(source, destination, [previous, ...chain], paths)));
+    } else if (operation === 'squash') {
+      console.log(JSON.stringify(squash(source, destination, [previous, ...chain], format)));
+    } else {
+      throw new Error('Unknown operation: ' + operation);
+    }
   } catch (err) { console.error(err.message); process.exitCode = 1; }
 }

@@ -4,10 +4,10 @@ Snapshot date: 2026-10-24. Module version: 0.3.0 in `main`; the published module
 
 | Category | Count |
 |---|---:|
-| Owned production MoonBit physical lines (root + CLI + codec) | 1288 |
-| Nonblank, non-comment production lines | 1093 |
-| MoonBit test declarations | 43 |
-| CLI fixture cases | 37 |
+| Owned production MoonBit physical lines (root + CLI + codec) | 1464 |
+| Nonblank, non-comment production lines | 1247 |
+| MoonBit test declarations | 53 |
+| CLI fixture cases | 44 |
 | Generated fixture test declarations | 0 |
 
 The codec column covers `sha256.mbt` and `base64.mbt`, which are project code: the module has no

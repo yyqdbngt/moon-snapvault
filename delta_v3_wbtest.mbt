@@ -36,6 +36,10 @@ fn digest_of(text : String) -> String {
 }
 
 ///|
+/// "Restore everything", the selection a request without `paths` produces.
+let all_files : Selection = { prefixes: None, }
+
+///|
 test "a delta stores only the objects its parent lacks" {
   let base = base_snapshot()
   let delta = delta_snapshot(base)
@@ -98,17 +102,17 @@ test "a delta without its parent is not valid" {
   let report = audit_with(delta, [])
   assert_eq(get(report, "valid"), Bool(false))
   assert_eq(get(report, "chain_depth"), Number(1.0))
-  let reasons : Array[String] = arr(get(report, "issues")).map(fn(item) {
+  let reasons : Array[String] = arr(get(report, "issues")).map(item => {
     str(get(item, "reason"))
   })
   assert_true(reasons.contains("missing parent snapshot"))
   assert_true(reasons.contains("missing object"))
-  let objects : Array[String] = arr(get(report, "issues")).map(fn(item) {
+  let objects : Array[String] = arr(get(report, "issues")).map(item => {
     str(get(item, "object"))
   })
   assert_true(objects.contains(str(get(base, "checksum"))))
   let refused = try {
-    ignore(restore_with(delta, []))
+    ignore(restore_with(delta, [], all_files))
     false
   } catch {
     _ => true
@@ -120,7 +124,7 @@ test "a delta without its parent is not valid" {
 test "restore reads inherited objects" {
   let base = base_snapshot()
   let delta = delta_snapshot(base)
-  let restored = restore_with(delta, [base])
+  let restored = restore_with(delta, [base], all_files)
   assert_eq(get(restored, "verified"), Bool(true))
   assert_eq(get(restored, "chain_depth"), Number(2.0))
   assert_eq(get(restored, "encoding"), String("base64"))
@@ -155,7 +159,7 @@ test "a chain of deltas resolves to the oldest base" {
   assert_eq(get(report, "valid"), Bool(true))
   assert_eq(get(report, "chain_depth"), Number(3.0))
   assert_eq(get(report, "objects_inherited"), Number(4.0))
-  let restored = restore_with(third, [second, first])
+  let restored = restore_with(third, [second, first], all_files)
   let files = arr(get(restored, "files"))
   assert_eq(files.length(), 4)
   // third.txt comes from the newest link, shared.txt from the base.
@@ -173,7 +177,7 @@ test "a corrupted parent is refused" {
   tampered["objects"] = Object(objects)
   let report = audit_with(delta, [Object(tampered)])
   assert_eq(get(report, "valid"), Bool(false))
-  let reasons : Array[String] = arr(get(report, "issues")).map(fn(item) {
+  let reasons : Array[String] = arr(get(report, "issues")).map(item => {
     str(get(item, "reason"))
   })
   assert_true(reasons.contains("digest mismatch"))
@@ -191,7 +195,7 @@ test "a self-referential parent terminates" {
   forged["checksum"] = String(checksum(3, Some(own), arr(forged["files"])))
   let report = audit_with(Object(forged), [Object(forged)])
   assert_eq(get(report, "valid"), Bool(false))
-  let reasons : Array[String] = arr(get(report, "issues")).map(fn(item) {
+  let reasons : Array[String] = arr(get(report, "issues")).map(item => {
     str(get(item, "reason"))
   })
   assert_true(reasons.contains("missing parent snapshot"))

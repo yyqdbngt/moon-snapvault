@@ -1056,5 +1056,341 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "squash keeps the snapshot format and drops the parent",
+    "request": {
+      "operation": "squash",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/version": 3,
+      "snapshot/parent": null,
+      "snapshot/checksum": "00ec7c4e1840003c752a6f234882320de66a05c59a5326c2cc9131605e267b9f",
+      "snapshot/objects/ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj",
+      "snapshot/objects/4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno=",
+      "statistics/chain_depth": 2,
+      "statistics/objects": 2,
+      "statistics/files": 2,
+      "statistics/bytes": 5
+    },
+    "error": false
+  },
+  {
+    "name": "squash to format 2 matches a direct create",
+    "request": {
+      "operation": "squash",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ],
+      "format": 2
+    },
+    "expected": {
+      "snapshot/version": 2,
+      "snapshot/checksum": "53eea0abb833f73e0a54564a1b0cc73d37a6fb3a96eef857499adf066446b966"
+    },
+    "error": false
+  },
+  {
+    "name": "a squashed snapshot audits without a chain",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj",
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "00ec7c4e1840003c752a6f234882320de66a05c59a5326c2cc9131605e267b9f"
+      }
+    },
+    "expected": {
+      "valid": true,
+      "chain_depth": 1,
+      "objects_total": 2,
+      "objects_inherited": 0,
+      "objects_checked": 2
+    },
+    "error": false
+  },
+  {
+    "name": "squash without the chain is refused",
+    "request": {
+      "operation": "squash",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      }
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "restore selects one file",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ],
+      "paths": [
+        "a.txt"
+      ]
+    },
+    "expected": {
+      "verified": true,
+      "selected": 1,
+      "total_files": 2,
+      "files/0/path": "a.txt",
+      "files/0/bytes": "YWJj"
+    },
+    "error": false
+  },
+  {
+    "name": "restore selects nothing for an unknown path",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ],
+      "paths": [
+        "nope.txt"
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "restore refuses an unsafe selection",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ],
+      "paths": [
+        "../escape"
+      ]
+    },
+    "expected": {},
+    "error": true
   }
 ]

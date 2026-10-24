@@ -599,11 +599,21 @@ pub fn create_snapshot(
 
 ///|
 fn requested_format(request : Value) -> Int32 raise {
+  match optional_format(request) {
+    None => 2
+    Some(value) => value
+  }
+}
+
+///|
+/// `format` when the request names one; `None` lets the operation pick its own
+/// default. `squash` keeps the snapshot's format, `create` writes format 2.
+fn optional_format(request : Value) -> Int32? raise {
   match get(request, "format") {
-    Null => 2
-    Number(n) if n == 1.0 => 1
-    Number(n) if n == 2.0 => 2
-    Number(n) if n == 3.0 => 3
+    Null => None
+    Number(n) if n == 1.0 => Some(1)
+    Number(n) if n == 2.0 => Some(2)
+    Number(n) if n == 3.0 => Some(3)
     _ => raise InputError("unsupported snapshot format")
   }
 }
@@ -622,35 +632,189 @@ fn request_parents(request : Value) -> Array[Value] {
 }
 
 ///|
-/// Resolves every file through the chain and returns the payload in this
+/// A restore selection: `None` means every file. A path selects the file with
+/// that exact name and everything below it, so `docs` takes `docs/a.md` too.
+priv struct Selection {
+  prefixes : Array[String]?
+}
+
+///|
+fn request_selection(request : Value) -> Selection raise {
+  match get(request, "paths") {
+    Null => { prefixes: None, }
+    Array(items) => {
+      let prefixes : Array[String] = []
+      for item in items {
+        let raw = str(item)
+        if !safe_path(raw) {
+          raise InputError("unsafe restore path: " + raw)
+        }
+        prefixes.push(raw)
+      }
+      if prefixes.is_empty() {
+        raise InputError("paths must name at least one path")
+      }
+      { prefixes: Some(prefixes), }
+    }
+    _ => raise InputError("paths must be an array of strings")
+  }
+}
+
+///|
+fn selects(selection : Selection, path : String) -> Bool {
+  match selection.prefixes {
+    None => true
+    Some(prefixes) => {
+      let mut matched = false
+      for prefix in prefixes {
+        if path == prefix || path.has_prefix(prefix + "/") {
+          matched = true
+        }
+      }
+      matched
+    }
+  }
+}
+
+///|
+fn unresolved_selection(
+  selection : Selection,
+  listed : Array[Value],
+) -> Array[String] raise {
+  let missing : Array[String] = []
+  match selection.prefixes {
+    None => ()
+    Some(prefixes) =>
+      for prefix in prefixes {
+        let mut hit = false
+        for file in listed {
+          if selects({ prefixes: Some([prefix]), }, str(get(file, "path"))) {
+            hit = true
+          }
+        }
+        if !hit {
+          missing.push(prefix)
+        }
+      }
+  }
+  sort_strings(missing)
+  missing
+}
+
+///|
+/// Resolves the selected files through the chain and returns the payload in this
 /// snapshot's own encoding, so the host adapter decodes with one call.
-fn restore_with(snapshot : Value, parents : Array[Value]) -> Value raise {
+fn restore_with(
+  snapshot : Value,
+  parents : Array[Value],
+  selection : Selection,
+) -> Value raise {
   let report = audit_with(snapshot, parents)
   if get(report, "valid") != Bool(true) {
     raise InputError("cannot restore corrupted snapshot")
   }
   let (version, _, listed) = manifest(snapshot)
+  let missing = unresolved_selection(selection, listed)
+  if !missing.is_empty() {
+    raise InputError("restore path not found in snapshot: " + missing[0])
+  }
   let (links, _) = resolve_chain(snapshot, parents)
-  let files = listed.map(file => {
-    let hash = str(get(file, "digest"))
-    let payload = match object_payload(links, hash) {
-      Some((link_version, raw)) =>
-        match decode_object(link_version, raw) {
-          Some(bytes) => encode_object(version, bytes)
-          None => Null
-        }
-      None => Null
+  let files : Array[Value] = []
+  for file in listed {
+    let path = str(get(file, "path"))
+    if selects(selection, path) {
+      let hash = str(get(file, "digest"))
+      let payload = match object_payload(links, hash) {
+        Some((link_version, raw)) =>
+          match decode_object(link_version, raw) {
+            Some(bytes) => encode_object(version, bytes)
+            None => Null
+          }
+        None => Null
+      }
+      let result = obj(file).copy()
+      result["bytes"] = payload
+      files.push(Object(result))
     }
-    let result = obj(file).copy()
-    result["bytes"] = payload
-    Object(result)
-  })
+  }
   record([
     ("format", Number(version.to_double())),
     ("encoding", String(if version == 1 { "decimal" } else { "base64" })),
     ("chain_depth", get(report, "chain_depth")),
     ("files", Array(files)),
+    ("selected", Number(files.length().to_double())),
+    ("total_files", Number(listed.length().to_double())),
     ("verified", Bool(true)),
+  ])
+}
+
+///|
+/// Compacts a chain into one self-contained snapshot. Only objects the manifest
+/// reaches are kept, so payloads no file points at are dropped. The result has
+/// no parent and can be read without the chain. Without an explicit `format` the
+/// snapshot keeps its own, which leaves its checksum family intact.
+fn squash_with(
+  snapshot : Value,
+  parents : Array[Value],
+  requested : Int32?,
+) -> Value raise {
+  let format = match requested {
+    None => snapshot_version(snapshot)
+    Some(value) => value
+  }
+  if format != 1 && format != 2 && format != 3 {
+    raise InputError("unsupported snapshot format")
+  }
+  let report = audit_with(snapshot, parents)
+  if get(report, "valid") != Bool(true) {
+    raise InputError("cannot squash corrupted snapshot")
+  }
+  let (_, _, listed) = manifest(snapshot)
+  let (links, _) = resolve_chain(snapshot, parents)
+  let objects : Map[String, Value] = Map([])
+  let mut bytes = 0.0
+  for file in listed {
+    let hash = str(get(file, "digest"))
+    if !objects.contains(hash) {
+      match object_payload(links, hash) {
+        None => raise InputError("cannot squash an unresolvable object")
+        Some((link_version, raw)) =>
+          match decode_object(link_version, raw) {
+            None => raise InputError("cannot squash an undecodable object")
+            Some(payload) => {
+              objects[hash] = encode_object(format, payload)
+              bytes += payload.length().to_double()
+            }
+          }
+      }
+    }
+  }
+  let fields : Array[(String, Value)] = [
+    ("version", Number(format.to_double())),
+  ]
+  // A squashed chain is self contained by definition, so the parent is explicit
+  // and empty rather than absent: readers can tell it was compacted.
+  let body = fields
+  if format >= 3 {
+    body.push(("parent", Null))
+  }
+  body.push(("files", Array(listed)))
+  body.push(("objects", Object(objects)))
+  body.push(("checksum", String(checksum(format, None, listed))))
+  let squashed = record(body)
+  ignore(manifest(squashed))
+  record([
+    ("snapshot", squashed),
+    (
+      "statistics",
+      record([
+        ("format", Number(format.to_double())),
+        ("chain_depth", get(report, "chain_depth")),
+        ("files", Number(listed.length().to_double())),
+        ("objects", Number(objects.length().to_double())),
+        ("bytes", Number(bytes)),
+      ]),
+    ),
   ])
 }
 
@@ -668,7 +832,17 @@ pub fn run(request : Value) -> Value raise {
     "audit" => audit_with(get(request, "snapshot"), request_parents(request))
     "diff" => diff_snapshots(get(request, "old"), get(request, "new"))
     "restore" =>
-      restore_with(get(request, "snapshot"), request_parents(request))
+      restore_with(
+        get(request, "snapshot"),
+        request_parents(request),
+        request_selection(request),
+      )
+    "squash" =>
+      squash_with(
+        get(request, "snapshot"),
+        request_parents(request),
+        optional_format(request),
+      )
     _ => raise InputError("unknown snapshot operation")
   }
 }

@@ -15,7 +15,10 @@ holds. Readers receive the chain as a list, index it by manifest checksum, and
 walk from the snapshot towards the root; each link's manifest is verified and the
 walk is capped at 64 links. Objects are verified once per unique digest across
 the chain, so `valid` means "every byte this snapshot depends on is intact".
-The manifest stays complete, which is what keeps `diff` chain-free.
+The manifest stays complete, which is what keeps `diff` chain-free. `squash`
+folds a chain into a single self-contained snapshot in one of the three formats,
+keeping each reachable object once; `restore` can be limited to a set of `paths`,
+matched on whole components.
 
 ## Codec
 

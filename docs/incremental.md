@@ -77,6 +77,40 @@ constructible - it would need a hash fixed point, because a checksum covers its
 parent's identity - but the resolver refuses one anyway rather than trusting
 that argument at runtime.
 
+## Compacting a chain
+
+Chains grow, and every restore needs every link. `squash` folds a chain into one
+self-contained snapshot:
+
+```json
+{"operation": "squash", "snapshot": <tip>, "parents": [<base>, ...], "format": 2}
+```
+
+The result keeps the complete manifest, holds every object the manifest reaches
+exactly once, has `"parent": null`, and needs no chain from then on. Objects the
+chain accumulated but no file points at are dropped, so squashing is also how the
+space that rewritten files leave behind is reclaimed. Without `format` the
+snapshot keeps its own version, which leaves its checksum family intact;
+`"format": 2` on a three-link chain produces a file byte-identical to creating
+the same tree directly.
+
+Squashing twice changes nothing, which the tests assert by comparing checksums.
+
+## Selecting files to restore
+
+`restore` takes an optional `paths` list. A path selects the entry with that name
+and everything below it, matched on whole components - `docs` covers
+`docs/a.md` but `doc` covers nothing.
+
+```json
+{"operation": "restore", "snapshot": <tip>, "parents": [<base>], "paths": ["docs", "notes.txt"]}
+```
+
+The response reports `selected` and `total_files`, and the payload still resolves
+through the chain. A path that matches nothing fails with
+`restore path not found in snapshot: <path>` rather than silently restoring less
+than asked for; unsafe or empty selections are refused outright.
+
 ## Cost
 
 | | base | delta |
@@ -102,4 +136,13 @@ node scripts/filesystem.mjs restore SNAPSHOT DEST [PARENT...]
 
 `backup` with a `previous` writes a delta; without one it writes a self-contained
 format 2 snapshot. `backup` returns `format`, `parent`, `snapshot_bytes` and the
-object statistics, so a caller can see what it just wrote.
+object statistics, so a caller can see what it just wrote. `restore` accepts
+`--path P` (repeatable) to write a subset, and `squash` compacts a chain:
+
+```sh
+node scripts/filesystem.mjs squash tip.json compact.json base.json middle.json --format 2
+```
+
+A practical rotation is: one self-contained base, a delta per backup, and a
+squash whenever the chain gets uncomfortably long - the compacted file replaces
+the chain as the new base.

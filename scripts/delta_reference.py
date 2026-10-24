@@ -194,6 +194,51 @@ check('re-pointing a delta breaks its checksum',
 legacy = run({'format': 2, 'files': [], 'previous': base}, error=True)
 check('format 2 refuses a parent chain', 'error' in legacy)
 
-print('Delta oracle: base/delta/three-link chains resolve, refuse and match' if not failures
-      else 'Delta oracle: %d check(s) failed' % failures)
+# --- squash and selective restore ------------------------------------------
+squashed = run({'operation': 'squash', 'snapshot': second, 'parents': [base, delta]})['snapshot']
+check('squash drops the parent', squashed.get('parent') is None and squashed['version'] == 3)
+check('squash checksum matches the oracle', manifest_checksum(squashed) == squashed['checksum'])
+check('squash keeps the manifest', squashed['files'] == second['files'])
+check('squash stores every reachable object', sorted(squashed['objects']) == sorted(
+    {sha(d.decode()) for d in (shared, fresh, added, b'later')}
+), str(sorted(squashed['objects'])))
+report = run({'operation': 'audit', 'snapshot': squashed})
+check('a squashed snapshot needs no chain', report['valid'] is True and report['chain_depth'] == 1)
+restored = run({'operation': 'restore', 'snapshot': squashed})
+actual = {f['path']: base64.b64decode(f['bytes'], validate=True) for f in restored['files']}
+check('a squashed snapshot restores the same tree', actual == {
+    'shared.txt': shared, 'retired.txt': fresh, 'added.txt': added, 'later.txt': b'later',
+})
+
+# Squashing to format 2 must equal creating the same tree directly.
+direct = run({'format': 2, 'files': [
+    {'path': 'shared.txt', 'content_base64': base64.b64encode(shared).decode()},
+    {'path': 'retired.txt', 'content_base64': base64.b64encode(fresh).decode()},
+    {'path': 'added.txt', 'content_base64': base64.b64encode(added).decode()},
+    {'path': 'later.txt', 'content_base64': base64.b64encode(b'later').decode()},
+]})['snapshot']
+as_two = run({'operation': 'squash', 'snapshot': second, 'parents': [base, delta], 'format': 2})['snapshot']
+check('squash to format 2 equals a direct create', (
+    as_two['checksum'] == direct['checksum'] and as_two['objects'] == direct['objects']
+), as_two['checksum'] + ' vs ' + direct['checksum'])
+
+# Selective restore: a directory prefix, an exact file, and a miss.
+partial = run({'operation': 'restore', 'snapshot': second, 'parents': [base, delta],
+               'paths': ['added.txt']})
+check('restore selects one file', [f['path'] for f in partial['files']] == ['added.txt'],
+      str([f['path'] for f in partial['files']]))
+check('restore reports the selection size',
+      partial['selected'] == 1 and partial['total_files'] == 4, str(partial['selected']))
+missing = run({'operation': 'restore', 'snapshot': second, 'parents': [base, delta],
+               'paths': ['nope.txt']}, error=True)
+check('restore refuses an unknown path', 'not found' in missing['error'], missing['error'])
+unsafe = run({'operation': 'restore', 'snapshot': second, 'parents': [base, delta],
+              'paths': ['../etc/passwd']}, error=True)
+check('restore refuses an unsafe path', 'unsafe' in unsafe['error'], unsafe['error'])
+nothing = run({'operation': 'restore', 'snapshot': second, 'parents': [base, delta],
+               'paths': []}, error=True)
+check('restore refuses an empty selection', 'at least one' in nothing['error'], nothing['error'])
+
+print('Delta oracle: base/delta/three-link chains resolve, squash and refuse as expected'
+      if not failures else 'Delta oracle: %d check(s) failed' % failures)
 sys.exit(1 if failures else 0)

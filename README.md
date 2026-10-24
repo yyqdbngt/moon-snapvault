@@ -10,7 +10,7 @@ Content-addressed snapshots, implemented in MoonBit with a JSON CLI and reusable
 
 ## Implemented
 
-SHA-256 object identities; byte, UTF-8 text or base64 inputs; deduplicated content stores; incremental snapshots that reference a parent chain instead of copying unchanged bytes; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits that verify every stored object, referenced or not; verified restore plans that carry permission bits; retention reachability plans. Snapshots are written in the compact format 2, or as a format 3 delta when a previous snapshot is supplied; both older formats stay readable. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
+SHA-256 object identities; byte, UTF-8 text or base64 inputs; deduplicated content stores; incremental snapshots that reference a parent chain instead of copying unchanged bytes, chain compaction and selective restore; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits that verify every stored object, referenced or not; verified restore plans that carry permission bits; retention reachability plans. Snapshots are written in the compact format 2, or as a format 3 delta when a previous snapshot is supplied; both older formats stay readable. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
 
 ## Build and run
 
@@ -71,7 +71,7 @@ node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 43 MoonBit test declarations and 37 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 53 MoonBit test declarations and 44 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
@@ -97,7 +97,13 @@ delta cannot be re-pointed at a different base.
 ```sh
 node scripts/filesystem.mjs backup  SOURCE current.json previous.json      # delta
 node scripts/filesystem.mjs restore current.json DEST previous.json        # needs the chain
+node scripts/filesystem.mjs restore current.json DEST --path docs          # subset only
+node scripts/filesystem.mjs squash  current.json compact.json previous.json # fold the chain
 ```
+
+`squash` folds a chain into one self-contained snapshot, keeping each reachable
+object once and dropping unreferenced ones; squashing to format 2 produces a file
+byte-identical to creating the same tree directly.
 
 A 3 MiB tree with one changed file: base snapshot 4.1 MB and 611 ms, delta 752 B
 and 685 ms - 0.02% of the base on disk, but priced like a full backup in time

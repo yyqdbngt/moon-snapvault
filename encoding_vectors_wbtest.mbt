@@ -123,5 +123,6 @@ test "base64 rejects malformed input" {
   }
   // Padding is optional: RFC 4648 allows the unpadded form.
   assert_eq(base64_decode("Bzw"), base64_decode("Bzw="))
-  assert_eq(base64_decode(""), Some(Bytes::default()))
+  let empty : Bytes = Default::default()
+  assert_eq(base64_decode(""), Some(empty))
 }

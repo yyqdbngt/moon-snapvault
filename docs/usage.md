@@ -50,6 +50,11 @@ objects the chain lacks; the manifest still lists every path.
 | `{"operation": "restore", "snapshot": <delta>, "parents": [<base>]}` | payload resolved through the chain |
 | `{"operation": "restore", "snapshot": <delta>}` | error: cannot restore corrupted snapshot |
 
+| `{"operation": "squash", "snapshot": <delta>, "parents": [<base>]}` | self-contained snapshot, `parent: null` |
+| `{"operation": "squash", ..., "format": 2}` | same, re-encoded as format 2 |
+| `{"operation": "restore", ..., "paths": ["docs"]}` | only `docs` and below, `selected`/`total_files` |
+| `{"operation": "restore", ..., "paths": ["nope"]}` | error: `restore path not found in snapshot` |
+
 `parents` may be supplied in any order; links are matched by checksum. See
 [incremental snapshots](incremental.md).
 
@@ -75,7 +80,7 @@ objects the chain lacks; the manifest still lists every path.
 
 ## Restore result fields
 
-`{"operation": "restore", "snapshot": ...}` returns `format`, `encoding`, `files` (each with `path`, `digest`, `size`, `mode` and `bytes`) and `verified: true`; the filesystem adapter adds `modes_applied`. The core operation only plans the restore; `scripts/filesystem.mjs` writes the files and applies `mode` with `chmod`.
+`{"operation": "restore", "snapshot": ...}` returns `format`, `encoding`, `files` (each with `path`, `digest`, `size`, `mode` and `bytes`), `selected`, `total_files` and `verified: true`; the filesystem adapter adds `modes_applied`. The core operation only plans the restore; `scripts/filesystem.mjs` writes the files and applies `mode` with `chmod`.
 
 ## SHA256 known vector
 
