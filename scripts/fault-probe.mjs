@@ -47,7 +47,15 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), 'snapvault-fault-'));
 const problems = [];
 
 try {
-  mountTiny();
+  try {
+    mountTiny();
+  } catch (err) {
+    // Not being able to run this is not a failure of the project, and a stack trace
+    // would suggest otherwise. Say what is missing and stop.
+    console.log('Fault probe: skipped - ' + err.message);
+    console.log('  Run as root: sudo -n node scripts/fault-probe.mjs');
+    process.exit(0);
+  }
   const free = Number(/^(\d+)/.exec(shell(`df -k ${mount}`).stdout.split('\n')[1])?.[1] ?? 0);
   console.log(`probe: tmpfs of ${volumeSize / MB} MiB at ${mount}`);
 
