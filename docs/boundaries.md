@@ -21,6 +21,28 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Memory
+
+Every exchange with the core is one JSON request and one JSON response, and base64
+payloads pass through both. Peak resident memory is therefore a small multiple of
+the tree, not a constant:
+
+| Tree | Chain | Restore peak RSS | Heap floor |
+|---|---|---|---|
+| 16 MiB | 2 links | +136 MiB over baseline | between 64 and 80 MiB |
+| 24 MiB | 3 links | +180 MiB over baseline | under 96 MiB |
+
+Streaming inside the adapter was implemented and measured: writing each batch as it
+arrives lowered the heap floor from between 64 and 80 MiB to between 56 and 64 MiB,
+was 16% slower, and gave up the guarantee that nothing is written before every
+payload verifies. That trade was rejected rather than shipped as an option.
+
+A genuinely bounded restore needs the core to emit payloads incrementally instead
+of one JSON document per request, which means changing the CLI protocol. Until
+then, a tree has to fit in memory with room for its own base64 copy. Building a
+delta does better: each link is read, verified and released in turn, so the cost is
+the largest link rather than the whole chain.
+
 A delta may be built from a manifest-only parent plus a `known_objects` digest
 list, which is what keeps a large base inside one request. The core then cannot
 verify the base and says so with `base_verified: false`; the claim is checked when

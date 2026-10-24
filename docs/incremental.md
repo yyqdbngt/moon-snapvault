@@ -168,6 +168,11 @@ list so no request grows past the cap), and only then creates the destination. T
 whole chain is still verified before anything is written. `squash` does the same
 and then audits the assembled snapshot.
 
+Extending a chain works the same way: each link is verified in its own request,
+batched by the payload sizes its manifest states. Before that, adding a third 8 MiB
+link failed with `input exceeds 16 MiB`, because the whole chain was audited in one
+request.
+
 Measured on three links with two large ones - 9.8 MB, 8.4 MB and 1.4 MB, 19 MB of
 chain: restore and squash both fail with a single request and both succeed
 piecewise, with the squash checksum identical to the one-request result.

@@ -55,14 +55,48 @@ export function manifestOnly(snapshot) {
 //
 // The chain is audited in its own request first: the base is still verified before
 // a delta is built on it, which the core cannot do for a manifest-only parent.
-export function deltaFromDigests(files, parentSnapshot, parents, sourceBytes = 0) {
-  engineText(JSON.stringify({
-    operation: 'audit', snapshot: parentSnapshot, parents,
-  }));
-  const known = [...new Set([
-    ...Object.keys(parentSnapshot.objects || {}),
-    ...parents.flatMap((item) => Object.keys(item.objects || {})),
-  ])];
+// Verifies one link's own payloads, in batches small enough to stay under the
+// request cap. Auditing the whole chain at once would put every payload of every
+// link into a single request, which is exactly what does not fit for a long chain.
+function verifyLink(link, budget = 8 * 1024 * 1024) {
+  const digests = Object.keys(link.objects || {});
+  if (!digests.length) return 0;
+  // The manifest already states each payload's size, so batches can be sized
+  // before anything is read.
+  const sizes = new Map();
+  for (const file of link.files || []) sizes.set(file.digest, file.size || 0);
+  let batch = [];
+  let used = 0;
+  let verified = 0;
+  const flush = () => {
+    if (!batch.length) return;
+    const got = engineText(JSON.stringify({
+      operation: 'extract', snapshot: link, digests: batch, format: link.version,
+    }));
+    if (got.verified !== true) throw new Error('a link failed verification');
+    verified += batch.length;
+    batch = [];
+  };
+  for (const digest of digests) {
+    const size = sizes.get(digest) ?? 0;
+    if (used + size > budget) { flush(); used = 0; }
+    batch.push(digest);
+    used += size;
+  }
+  flush();
+  return verified;
+}
+
+// `linkFiles` are snapshot paths; each is read, verified and released in turn, so
+// building a delta needs room for one link rather than for the whole chain.
+export function deltaFromDigests(files, linkFiles, sourceBytes = 0) {
+  const known = new Set();
+  for (const file of linkFiles) {
+    const link = readSnapshot(file);
+    verifyLink(link);
+    for (const digest of Object.keys(link.objects || {})) known.add(digest);
+  }
+  const parentSnapshot = readSnapshot(linkFiles[0]);
   const text = JSON.stringify({
     operation: 'create',
     format: 3,
@@ -70,8 +104,8 @@ export function deltaFromDigests(files, parentSnapshot, parents, sourceBytes = 0
     previous: manifestOnly(parentSnapshot),
     // The rest of the chain is just as expensive as the parent, and locating a
     // digest needs no payload either, so every link travels as a manifest.
-    parents: parents.map(manifestOnly),
-    known_objects: known,
+    parents: linkFiles.slice(1).map((file) => manifestOnly(readSnapshot(file))),
+    known_objects: [...known],
   });
   return engineText(checkRequestSize(text, {
     source: sourceBytes,
@@ -108,20 +142,27 @@ export function backup(source, destination, previous, chain = []) {
   }
   walk(base, '');
   warnNonPortable(files);
-  const parentSnapshot = previous ? readSnapshot(previous) : null;
-  const parents = readChain(chain);
-  const request = {
-    operation: 'create',
-    format: previous ? 3 : 2,
-    files,
-    ...(previous ? {previous: parentSnapshot, parents} : {}),
-  };
   const sourceBytes = files.reduce((sum, file) => sum + file.content_base64.length, 0);
-  const parentBytes = parentSnapshot ? JSON.stringify(parentSnapshot).length : 0;
-  const chainBytes = parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0);
-  const result = JSON.stringify(request).length <= REQUEST_LIMIT
-    ? engineText(JSON.stringify(request))
-    : deltaFromDigests(files, parentSnapshot, parents, sourceBytes);
+  const linkPaths = previous ? [previous, ...chain] : [];
+  // Deciding on file sizes avoids reading the chain at all in the common case
+  // where it plainly will not fit: the request only ever gets bigger than the
+  // files it is built from.
+  const linkBytes = linkPaths.reduce((sum, file) => sum + fs.statSync(file).size, 0);
+  const fitsOneRequest = sourceBytes + linkBytes + 4096 <= REQUEST_LIMIT;
+  let result;
+  if (fitsOneRequest) {
+    const parentSnapshot = previous ? readSnapshot(previous) : null;
+    result = engineText(JSON.stringify({
+      operation: 'create',
+      format: previous ? 3 : 2,
+      files,
+      ...(previous ? {previous: parentSnapshot, parents: readChain(chain)} : {}),
+    }));
+  } else {
+    // One link is read, verified and released at a time, so a chain of any length
+    // costs the largest link rather than the sum of them.
+    result = deltaFromDigests(files, linkPaths, sourceBytes);
+  }
   const tmp = output + '.' + randomUUID() + '.tmp';
   try {
     fs.writeFileSync(tmp, JSON.stringify(result.snapshot), {flag: 'wx'});
@@ -136,7 +177,7 @@ export function backup(source, destination, previous, chain = []) {
     // The core reports false when a delta was built from a digest list instead of
     // the parent's payloads. The chain was still audited first, so the adapter can
     // say so; the pair is what a caller should look at, not either field alone.
-    chain_verified: parentSnapshot !== null,
+    chain_verified: previous !== null && previous !== undefined,
   };
 }
 

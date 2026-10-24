@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Long chains
+
+- Fixed: adding a third large link to a chain failed with `input exceeds 16 MiB`.
+  The declared-objects path audited the entire chain in one request, which is the
+  one thing that cannot fit; three links of 8 MiB were enough to hit it. Each link
+  is now verified in its own request, batched by the payload sizes its manifest
+  already states. The integration test builds that exact chain and fails on the
+  previous code.
+- The adapter decides between the one-request and declared-objects paths from file
+  sizes, so a chain that plainly will not fit is never read into memory first, and
+  the fallback holds one link at a time.
+- Measured and documented: peak memory is a small multiple of the tree because every
+  exchange is one JSON document with base64 payloads. Streaming inside the adapter
+  lowered the heap floor from 64-80 MiB to 56-64 MiB while being 16% slower and
+  giving up the verify-before-write guarantee, so it was not shipped.
+
 ### Reading a chain that is larger than one request
 
 - `locate` answers which link stores each payload using manifests only, so a

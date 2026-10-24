@@ -100,7 +100,8 @@ try {
       }
     }
   })(source, '');
-  const slimStats = deltaFromDigests(slimFiles, read(two), [read(one)]);
+  // Signature takes paths now: it reads and verifies one link at a time.
+  const slimStats = deltaFromDigests(slimFiles, [two, one]);
   const withParent = engine({
     operation: 'create', format: 3, previous: read(two), parents: [read(one)], files: slimFiles,
   });
@@ -166,6 +167,51 @@ try {
     'the piecewise squash must equal the one-request squash');
   assert.deepEqual(piecewiseSquash.snapshot.objects, directSquash.snapshot.objects);
   assert.deepEqual(manifestOnly(chainSnapshots[1]).files, chainSnapshots[1].files);
+
+  // Extending a chain to a third large link is the case that used to fail: the
+  // declared-objects path audited the whole chain in one request, so link 2 was
+  // rejected with "input exceeds 16 MiB". Three links of 8 MiB put the chain past
+  // the cap while each link still fits the adapter's per-backup limit.
+  {
+    const chainDir = path.join(base, 'long-chain');
+    const chainSrc = path.join(chainDir, 'src');
+    fs.mkdirSync(chainSrc, {recursive: true});
+    const writeRound = () => {
+      for (let i = 0; i < 8; i++) {
+        fs.writeFileSync(path.join(chainSrc, `f${i}.bin`), crypto.randomBytes(1024 * 1024));
+      }
+    };
+    writeRound();
+    const links = [path.join(chainDir, 'l0.json')];
+    backup(chainSrc, links[0]);
+    for (let n = 1; n < 3; n++) {
+      writeRound();
+      const next = path.join(chainDir, `l${n}.json`);
+      const stats = backup(chainSrc, next, links[n - 1], links.slice(0, n - 1));
+      assert.equal(stats.format, 3);
+      assert.equal(stats.chain_verified, true);
+      links.push(next);
+    }
+    const chainTotal = links.reduce((sum, f) => sum + fs.statSync(f).size, 0);
+    assert.ok(chainTotal > 16 * 1024 * 1024, `chain should exceed the cap, was ${chainTotal}`);
+    const longTarget = path.join(chainDir, 'out');
+    const longResult = restore(links[2], longTarget, [links[1], links[0]]);
+    assert.equal(longResult.chain_depth, 3);
+    assert.equal(longResult.files, 8);
+    // Byte-for-byte against the last round the source held.
+    for (let i = 0; i < 8; i++) {
+      assert.deepEqual(fs.readFileSync(path.join(longTarget, `f${i}.bin`)),
+        fs.readFileSync(path.join(chainSrc, `f${i}.bin`)));
+    }
+    const squashed = squash(links[2], path.join(chainDir, 'flat.json'), [links[1], links[0]]);
+    assert.equal(squashed.chain_depth, 3);
+    const flatTarget = path.join(chainDir, 'flat-out');
+    assert.equal(restore(path.join(chainDir, 'flat.json'), flatTarget).chain_depth, 1);
+    for (let i = 0; i < 8; i++) {
+      assert.deepEqual(fs.readFileSync(path.join(flatTarget, `f${i}.bin`)),
+        fs.readFileSync(path.join(chainSrc, `f${i}.bin`)));
+    }
+  }
 
   // Squashing compacts the whole chain into one self-contained file that no
   // longer needs its parents, and selects on the way out.
@@ -241,7 +287,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }
