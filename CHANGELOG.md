@@ -28,6 +28,23 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Fixtures now pin what they claim to
+
+- `scripts/check.mjs` grew two forms it should have had from the start. `"error": "text"`
+  requires the message to contain that text, and `"exact": true` pins the whole answer
+  including field order. All 25 error fixtures now pin their message, and 10 fixtures -
+  at least one per operation - pin a complete answer.
+- Fixed: `create refuses a corrupt previous snapshot` never tested corruption. Its
+  request also violated the format-3 requirement, so it failed earlier for an unrelated
+  reason and would have kept passing if the corruption check were deleted. Caught by
+  pinning the message rather than merely asserting that something failed.
+- These three regressions were all invisible before and now fail the suite: changed
+  error text, a dropped output field, two output fields reordered.
+- `scripts/engine.mjs` refuses to run against a build older than the source. Editing,
+  running `moon build --target js`, and then checking silently used the stale release
+  artifact and reported three deliberate regressions as passing; the guard names the
+  build mode and the age, and `SNAPVAULT_ALLOW_STALE=1` overrides it.
+
 ### The library was never used from outside
 
 - `scripts/consumer-smoke.mjs`: a separate module that installs this source and calls

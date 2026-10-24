@@ -38,6 +38,36 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### How much the fixtures actually pin
+
+Each fixture pins something different, and the difference matters when reading a
+green run:
+
+- A field fixture pins one value by path and says nothing about anything it does not
+  name.
+- `"exact": true` pins the whole answer, including field order. Ten fixtures do this,
+  one or more per operation, so a field appearing, disappearing, being renamed or
+  moving is a failure rather than silence. That is consistent with the project's
+  claim of byte-identical output between backends.
+- `"error": "text"` pins a message. `"error": true` accepts any message and is only
+  used where the message genuinely does not matter; none currently do.
+
+The first version had only the field form and no error text at all, which meant a
+fixture could pass for the wrong reason. One did: `create refuses a corrupt previous
+snapshot` never reached the corruption check, because the request also failed the
+format-3 requirement, and would have kept passing if corruption detection had been
+deleted. Both that fixture and the checker were fixed.
+
+### Stale builds are refused, not tolerated
+
+The harness prefers a release artifact and falls back to debug. It caught itself out
+while this was being written: after editing source and running `moon build --target
+js`, the checker silently used the older release binary and reported three deliberate
+regressions as passing. `scripts/engine.mjs` now compares the artifact's modification
+time against the newest `.mbt` and refuses to run against a stale build, naming the
+build mode and the age. `SNAPVAULT_ALLOW_STALE=1` overrides it for the rare case where
+that is intended.
+
 ### The public interface is tested from outside
 
 `pub` in MoonBit is module-scoped, so none of the in-module tests can tell whether

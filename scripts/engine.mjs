@@ -7,10 +7,51 @@ export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 // used only when no release artifact exists. MOON_BUILD selects one explicitly.
 const BUILD_MODES = process.env.MOON_BUILD ? [process.env.MOON_BUILD] : ['release', 'debug'];
 
+// Newest modification time among the sources a build depends on.
+function newestSource() {
+  let newest = 0;
+  for (const entry of fs.readdirSync(root, {withFileTypes: true})) {
+    if (!entry.isFile() || !entry.name.endsWith('.mbt')) continue;
+    newest = Math.max(newest, fs.statSync(path.join(root, entry.name)).mtimeMs);
+  }
+  for (const sub of ['cmd/main']) {
+    const directory = path.join(root, sub);
+    if (!fs.existsSync(directory)) continue;
+    for (const name of fs.readdirSync(directory)) {
+      if (name.endsWith('.mbt')) {
+        newest = Math.max(newest, fs.statSync(path.join(directory, name)).mtimeMs);
+      }
+    }
+  }
+  return newest;
+}
+
+// A stale artifact silently tests code that is no longer the code on disk, and the
+// harness prefers release over debug, so `moon build --target js` after an edit is
+// not enough. That produced a false clean run while this check was being added, so
+// it is now an explicit failure rather than a footgun.
+function assertFresh(artifact, mode) {
+  const built = fs.statSync(artifact).mtimeMs;
+  const source = newestSource();
+  if (built >= source) return;
+  const stale = ((source - built) / 1000).toFixed(1);
+  if (process.env.SNAPVAULT_ALLOW_STALE === '1') {
+    console.error(`warning: using a ${mode} build that is ${stale}s older than the source`);
+    return;
+  }
+  throw new Error(
+    `The ${mode} build is ${stale}s older than the source, so it would test code that `
+    + 'is no longer on disk. Rebuild with `moon build --target js --release` '
+    + '(and `moon build --target js` for the debug fallback), or set '
+    + 'SNAPVAULT_ALLOW_STALE=1 to use it anyway.');
+}
+
 function cliPath() {
   for (const mode of BUILD_MODES) {
     const candidate = path.join(root, '_build/js', mode, 'build/cmd/main/main.js');
-    if (fs.existsSync(candidate)) return candidate;
+    if (!fs.existsSync(candidate)) continue;
+    assertFresh(candidate, mode);
+    return candidate;
   }
   throw new Error('Run `moon build --target js --release` first (or set MOON_BUILD=debug)');
 }
