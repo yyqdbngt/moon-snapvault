@@ -28,6 +28,18 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### The library was never used from outside
+
+- `scripts/consumer-smoke.mjs`: a separate module that installs this source and calls
+  every exported function - typed `create_snapshot`, `audit_snapshot`, `run`,
+  `execute(Json)`, `safe_path`, `digest`, `parse_value`, and a matched `InputError`.
+  No in-module test can do this, because `pub` is module-scoped and a sub-package
+  would see more than a consumer does. It fails when an export is renamed, which the
+  in-module suite does not notice.
+- README now says a caller's `main` must be `fn main raise`, because every exported
+  function raises; writing `fn main` is a compile error, which the smoke test found
+  the hard way.
+
 ### Windows path forms, tested rather than reasoned about
 
 - Integration tests now assert containment for every hostile selection shape the core

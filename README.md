@@ -46,6 +46,16 @@ fn example(request : Json) -> Json raise {
 }
 ```
 
+Every exported function raises `InputError`, so a `main` that calls one must be
+declared `fn main raise` (or catch it):
+
+```moonbit
+fn main raise {
+  let snapshot = @engine.create_snapshot(files)
+  println(@engine.Value::stringify(snapshot))
+}
+```
+
 `execute(Json) -> Json raise` is the standard JSON boundary. `from_json`, `parse_value`, `Value::to_json`, and `run(Value) -> Value raise` provide a typed semantic value interface. Object ordering is not significant; numeric values use finite Double. Public domain functions are listed in `pkg.generated.mbti`.
 
 ## Tests
@@ -73,6 +83,7 @@ python -B scripts/fuzz.py 8
 python -B scripts/robustness.py
 node scripts/stats.mjs
 node scripts/interface.mjs
+node scripts/consumer-smoke.mjs
 node scripts/integration.mjs
 moon fmt --check
 ```

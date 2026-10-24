@@ -38,6 +38,10 @@ moon build --target js >/dev/null
 moon build --target js --release >/dev/null
 node scripts/stats.mjs
 node scripts/interface.mjs
+# A separate module compiled against the exported interface, which is the only way
+# to see exactly what pkg.generated.mbti promises: `pub` is module-scoped, so a
+# sub-package would see more than a real consumer.
+node scripts/consumer-smoke.mjs
 node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py

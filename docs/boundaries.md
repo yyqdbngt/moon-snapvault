@@ -38,6 +38,17 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### The public interface is tested from outside
+
+`pub` in MoonBit is module-scoped, so none of the in-module tests can tell whether
+an external consumer can actually use the exported functions: they are inside the
+module and see more. `scripts/consumer-smoke.mjs` closes that gap by creating a
+separate module, installing this source into its `.mooncakes`, and compiling and
+running a program that calls every exported function - typed construction, the JSON
+`execute` boundary, `run`, `safe_path`, `digest`, `parse_value`, and matching a
+raised `InputError`. It fails if an export is renamed or its signature changes, which
+is a different failure from the in-module tests, and it is part of `verify.sh` and CI.
+
 ### Release readiness
 
 `scripts/verify.sh` is run against the pushed tree from a fresh clone before a
