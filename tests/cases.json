@@ -160,5 +160,217 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "audit covers unreferenced objects",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 1,
+        "files": [],
+        "objects": {
+          "0000000000000000000000000000000000000000000000000000000000000000": [
+            1,
+            2,
+            3
+          ]
+        },
+        "checksum": "e5eccfdf0ce59ef36eb6f436f75e124e7979c91641945c21fbccdf585f335c56"
+      }
+    },
+    "expected": {
+      "valid": false,
+      "objects_total": 1,
+      "objects_checked": 1,
+      "referenced_objects": 0,
+      "unreferenced_objects": 1,
+      "issues/0/reason": "digest mismatch",
+      "issues/0/path": null
+    },
+    "error": false
+  },
+  {
+    "name": "audit and retention agree on a spare object",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 1,
+        "files": [
+          {
+            "path": "a",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+            97,
+            98,
+            99
+          ],
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": [
+            122,
+            122
+          ]
+        },
+        "checksum": "0a40f4e35fc7f7c8c9a84d28fdca50f28f20aba51cf413b930517168b07547a8"
+      }
+    },
+    "expected": {
+      "valid": true,
+      "objects_total": 2,
+      "objects_checked": 2,
+      "referenced_objects": 1,
+      "unreferenced_objects": 1
+    },
+    "error": false
+  },
+  {
+    "name": "retention lists a spare object as collectible",
+    "request": {
+      "operation": "retention",
+      "snapshots": [
+        {
+          "id": "one",
+          "snapshot": {
+            "version": 1,
+            "files": [
+              {
+                "path": "a",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+                97,
+                98,
+                99
+              ],
+              "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": [
+                122,
+                122
+              ]
+            },
+            "checksum": "0a40f4e35fc7f7c8c9a84d28fdca50f28f20aba51cf413b930517168b07547a8"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "keep_snapshots": [
+        "one"
+      ],
+      "reachable_objects": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ],
+      "collectible_objects": [
+        "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+      ],
+      "live_bytes": 3,
+      "collectible_bytes": 2,
+      "plan_only": true
+    },
+    "error": false
+  },
+  {
+    "name": "manifest order is lexicographic",
+    "request": {
+      "files": [
+        {
+          "path": "c",
+          "text": "x"
+        },
+        {
+          "path": "b/x",
+          "text": "x"
+        },
+        {
+          "path": "a",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/files/0/path": "a",
+      "snapshot/files/1/path": "b/x",
+      "snapshot/files/2/path": "c"
+    },
+    "error": false
+  },
+  {
+    "name": "restore reports verified bytes and mode",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 1,
+        "files": [
+          {
+            "path": "a",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 493
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+            97,
+            98,
+            99
+          ]
+        },
+        "checksum": "0c6a1352b6da89074a45eb31249271483236991bbcc154f54e35e5e36a0bb765"
+      }
+    },
+    "expected": {
+      "verified": true,
+      "files/0/path": "a",
+      "files/0/mode": 493,
+      "files/0/bytes/0": 97,
+      "files/0/bytes/2": 99
+    },
+    "error": false
+  },
+  {
+    "name": "restore refuses a corrupt snapshot",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 1,
+        "files": [],
+        "objects": {
+          "0000000000000000000000000000000000000000000000000000000000000000": [
+            1,
+            2,
+            3
+          ]
+        },
+        "checksum": "e5eccfdf0ce59ef36eb6f436f75e124e7979c91641945c21fbccdf585f335c56"
+      }
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "create refuses a corrupt previous snapshot",
+    "request": {
+      "files": [],
+      "previous": {
+        "version": 1,
+        "files": [],
+        "objects": {
+          "0000000000000000000000000000000000000000000000000000000000000000": [
+            1,
+            2,
+            3
+          ]
+        },
+        "checksum": "e5eccfdf0ce59ef36eb6f436f75e124e7979c91641945c21fbccdf585f335c56"
+      }
+    },
+    "expected": {},
+    "error": true
   }
 ]
