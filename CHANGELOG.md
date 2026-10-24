@@ -5,6 +5,29 @@
 Module version in `main` is 0.3.0; `moon add yyqdbngt/moon_snapvault` still
 resolves the published 0.2.0 until a release is published.
 
+### Incremental snapshots (format 3)
+
+- A snapshot may declare `parent` and store only the objects its chain does not
+  already hold. `create` with `previous` writes format 3; `format: 3` without
+  `previous` starts a chain explicitly. `format: 2` refuses a parent instead of
+  ignoring it.
+- `parent` is part of the checksum for format 3, so a delta cannot be re-pointed
+  at a different base. The manifest stays complete: only payloads are
+  incremental, and `diff` is unchanged.
+- `audit`, `restore` and `retention` accept `parents` and resolve the chain by
+  checksum. `audit` reports `chain_depth`, `objects_inherited` and the parent;
+  `valid` covers the whole chain. A missing link is an issue
+  (`missing parent snapshot`), and `restore` refuses before writing anything.
+- Chains are walked to 64 links with every manifest verified; a cycle or a
+  deeper chain raises instead of looping.
+- `create` reports `reused_object_bytes`, `objects_stored` and `objects_reused`.
+- Adapter: `backup` writes a delta when given a previous snapshot and returns
+  `format`, `parent` and `snapshot_bytes`; `restore` takes the chain. Requests
+  are measured before they are sent, so a delta too large for the 16 MiB CLI cap
+  fails with the split between source and parent instead of "input exceeds
+  16 MiB".
+- 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
+
 ### Snapshot format 2
 
 - Object payloads are base64 text instead of arrays of decimal byte values. A

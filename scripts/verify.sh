@@ -31,6 +31,7 @@ moon build --target js >/dev/null
 node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py
+python3 -B scripts/delta_reference.py
 node scripts/integration.mjs
 moon fmt --check >/dev/null
 echo "verify: ok"

@@ -8,6 +8,15 @@ SHA-256 object identities; byte, UTF-8 text or base64 inputs; deduplicated conte
 
 See `docs/boundaries.md`. In short: snapshots are self contained, the host adapter caps a backup at 1 MiB of source bytes, the core CLI caps input at 16 MiB, regular files only, restore needs a new directory, audits cover all objects, and manifests are integrity checked but not authenticated.
 
+## Chain resolution
+
+A format 3 snapshot names its parent and omits the payloads that chain already
+holds. Readers receive the chain as a list, index it by manifest checksum, and
+walk from the snapshot towards the root; each link's manifest is verified and the
+walk is capped at 64 links. Objects are verified once per unique digest across
+the chain, so `valid` means "every byte this snapshot depends on is intact".
+The manifest stays complete, which is what keeps `diff` chain-free.
+
 ## Codec
 
 `sha256.mbt` and `base64.mbt` hold the two primitives the domain code needs. SHA-256 runs over whole

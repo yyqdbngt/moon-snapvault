@@ -661,7 +661,398 @@
     "name": "unsupported snapshot format is refused",
     "request": {
       "files": [],
-      "format": 3
+      "format": 4
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "format 3 delta omits inherited objects",
+    "request": {
+      "format": 3,
+      "previous": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "files": [
+        {
+          "path": "a.txt",
+          "text": "abc"
+        },
+        {
+          "path": "b.txt",
+          "text": "zz"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/version": 3,
+      "snapshot/parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+      "snapshot/checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c",
+      "snapshot/objects/4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno=",
+      "statistics/objects_stored": 1,
+      "statistics/objects_reused": 1,
+      "statistics/reused_object_bytes": 3,
+      "statistics/new_object_bytes": 2
+    },
+    "error": false
+  },
+  {
+    "name": "delta audit resolves its parent",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ]
+    },
+    "expected": {
+      "valid": true,
+      "format": 3,
+      "chain_depth": 2,
+      "objects_total": 1,
+      "objects_inherited": 1,
+      "objects_checked": 2,
+      "referenced_objects": 2,
+      "unreferenced_objects": 0
+    },
+    "error": false
+  },
+  {
+    "name": "delta audit without the chain reports the gap",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      }
+    },
+    "expected": {
+      "valid": false,
+      "chain_depth": 1,
+      "objects_inherited": 0,
+      "issues/0/reason": "missing object",
+      "issues/1/reason": "missing parent snapshot",
+      "issues/1/object": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+    },
+    "error": false
+  },
+  {
+    "name": "delta restore returns inherited bytes",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ]
+    },
+    "expected": {
+      "verified": true,
+      "format": 3,
+      "encoding": "base64",
+      "chain_depth": 2,
+      "files/0/path": "a.txt",
+      "files/0/bytes": "YWJj",
+      "files/1/path": "b.txt",
+      "files/1/bytes": "eno="
+    },
+    "error": false
+  },
+  {
+    "name": "delta restore without the chain is refused",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      }
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "delta retention counts inherited objects",
+    "request": {
+      "operation": "retention",
+      "snapshots": [
+        {
+          "id": "base",
+          "snapshot": {
+            "version": 3,
+            "parent": null,
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+            },
+            "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+          }
+        },
+        {
+          "id": "delta",
+          "snapshot": {
+            "version": 3,
+            "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              },
+              {
+                "path": "b.txt",
+                "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+                "size": 2,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+            },
+            "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+          },
+          "parents": [
+            {
+              "version": 3,
+              "parent": null,
+              "files": [
+                {
+                  "path": "a.txt",
+                  "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                  "size": 3,
+                  "mode": 420
+                }
+              ],
+              "objects": {
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+              },
+              "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+            }
+          ]
+        }
+      ],
+      "keep": [
+        "delta"
+      ]
+    },
+    "expected": {
+      "keep_snapshots": [
+        "delta"
+      ],
+      "drop_snapshots": [
+        "base"
+      ],
+      "reachable_objects": [
+        "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ],
+      "collectible_objects": [],
+      "live_bytes": 5,
+      "plan_only": true
+    },
+    "error": false
+  },
+  {
+    "name": "re-pointing a delta breaks its checksum",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 3,
+        "parent": "0000000000000000000000000000000000000000000000000000000000000000",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "format 2 refuses to carry a parent",
+    "request": {
+      "format": 2,
+      "previous": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "files": [
+        {
+          "path": "a.txt",
+          "text": "abc"
+        }
+      ]
     },
     "expected": {},
     "error": true

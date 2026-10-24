@@ -147,37 +147,64 @@ fn content(file : Value) -> Bytes raise {
 }
 
 ///|
-fn checksum(version : Int32, files : Array[Value]) -> String {
-  digest(
-    @utf8.encode(
-      canonical(
-        record([
-          ("version", Number(version.to_double())),
-          ("files", Array(files)),
-        ]),
-      ),
-    ),
-  )
+/// The manifest checksum. Format 3 binds the parent identity into it, so a delta
+/// cannot be re-pointed at a different base without invalidating the checksum.
+fn checksum(version : Int32, parent : String?, files : Array[Value]) -> String {
+  let body = if version >= 3 {
+    let parent_value = match parent {
+      None => Null
+      Some(hash) => String(hash)
+    }
+    record([
+      ("version", Number(version.to_double())),
+      ("parent", parent_value),
+      ("files", Array(files)),
+    ])
+  } else {
+    record([("version", Number(version.to_double())), ("files", Array(files))])
+  }
+  digest(@utf8.encode(canonical(body)))
 }
 
 ///|
-/// Version 1 stores object payloads as arrays of decimal byte values; version 2
-/// stores them as base64 text. Both are readable; `create` writes version 2
-/// unless the request asks for `"format": 1`.
+/// - 1: object payloads are arrays of decimal byte values, self contained.
+/// - 2: payloads are base64 text, self contained.
+/// - 3: payloads are base64, and `parent` may name the snapshot whose objects
+///   this one reuses; a format 3 snapshot with no parent is self contained.
 fn snapshot_version(snapshot : Value) -> Int32 raise {
   match get(snapshot, "version") {
     Number(n) if n == 1.0 => 1
     Number(n) if n == 2.0 => 2
+    Number(n) if n == 3.0 => 3
     _ => raise InputError("unsupported snapshot version")
   }
 }
 
 ///|
-/// Returns the snapshot format version together with its validated files.
-fn manifest(snapshot : Value) -> (Int32, Array[Value]) raise {
+fn snapshot_parent(version : Int32, snapshot : Value) -> String? raise {
+  match get(snapshot, "parent") {
+    Null => None
+    String(hash) => {
+      if version < 3 {
+        raise InputError("only format 3 snapshots may declare a parent")
+      }
+      if !is_object_id(hash) {
+        raise InputError("invalid parent snapshot identifier")
+      }
+      Some(hash)
+    }
+    _ => raise InputError("invalid parent snapshot identifier")
+  }
+}
+
+///|
+/// Returns the snapshot format version, its optional parent identity and its
+/// validated files.
+fn manifest(snapshot : Value) -> (Int32, String?, Array[Value]) raise {
   let version = snapshot_version(snapshot)
+  let parent = snapshot_parent(version, snapshot)
   let files = arr(get(snapshot, "files"))
-  if get(snapshot, "checksum") != String(checksum(version, files)) {
+  if get(snapshot, "checksum") != String(checksum(version, parent, files)) {
     raise InputError("manifest checksum mismatch")
   }
   let paths : Map[String, Bool] = Map([])
@@ -225,7 +252,7 @@ fn manifest(snapshot : Value) -> (Int32, Array[Value]) raise {
       }
     }
   }
-  (version, files)
+  (version, parent, files)
 }
 
 ///|
@@ -246,71 +273,176 @@ fn issue(path : Value, object : String, reason : String) -> Value {
 }
 
 ///|
-pub fn audit_snapshot(snapshot : Value) -> Value raise {
-  let (version, files) = manifest(snapshot)
-  let objects = obj(get(snapshot, "objects"))
+/// A validated snapshot in a parent chain: the version that decides its payload
+/// encoding, and the objects it stores.
+priv struct Link {
+  version : Int32
+  objects : Map[String, Value]
+}
+
+///|
+/// A chain deeper than this is refused rather than walked.
+let max_chain_depth : Int32 = 64
+
+///|
+/// Walks the parent links of `snapshot`, matching each link against `parents` by
+/// manifest checksum. Returns the links in order (this snapshot first) and, when
+/// a link cannot be resolved, the identity that is missing.
+fn resolve_chain(
+  snapshot : Value,
+  parents : Array[Value],
+) -> (Array[Link], String?) raise {
+  let available : Map[String, Value] = Map([])
+  for candidate in parents {
+    match get(candidate, "checksum") {
+      String(id) =>
+        if is_object_id(id) && !available.contains(id) {
+          available[id] = candidate
+        }
+      _ => ()
+    }
+  }
+  let links : Array[Link] = []
+  let visited : Map[String, Bool] = Map([])
+  let mut current = snapshot
+  let mut depth = 0
+  let mut missing : String? = None
+  while true {
+    let (version, parent, _) = manifest(current)
+    let id = str(get(current, "checksum"))
+    if visited.contains(id) {
+      raise InputError("parent snapshot chain contains a cycle")
+    }
+    if depth >= max_chain_depth {
+      raise InputError("parent snapshot chain is too deep")
+    }
+    visited[id] = true
+    links.push({ version, objects: obj(get(current, "objects")), })
+    match parent {
+      None => break
+      Some(hash) =>
+        match available.get(hash) {
+          None => {
+            missing = Some(hash)
+            break
+          }
+          Some(next) => current = next
+        }
+    }
+    depth += 1
+  }
+  (links, missing)
+}
+
+///|
+fn object_payload(links : Array[Link], hash : String) -> (Int32, Value)? {
+  for link in links {
+    match link.objects.get(hash) {
+      Some(raw) => return Some((link.version, raw))
+      None => ()
+    }
+  }
+  None
+}
+
+///|
+/// `parents` supplies the chain for a format 3 delta; it is empty for a self
+/// contained snapshot.
+fn audit_with(snapshot : Value, parents : Array[Value]) -> Value raise {
+  let (version, parent, files) = manifest(snapshot)
+  let (links, missing) = resolve_chain(snapshot, parents)
   let issues : Array[Value] = []
   let referenced : Map[String, Bool] = Map([])
   for file in files {
     referenced[str(get(file, "digest"))] = true
   }
-  // Every stored object is verified, referenced or not: a snapshot with a
-  // corrupt unreferenced object is not reported as valid.
-  let mut checked = 0
-  let mut unreferenced = 0
-  for hash, raw in objects {
-    if !is_object_id(hash) {
-      issues.push(issue(Null, hash, "invalid object identifier"))
-      continue
-    }
-    if !referenced.contains(hash) {
-      unreferenced += 1
-    }
-    match decode_object(version, raw) {
-      None => issues.push(issue(Null, hash, "invalid object encoding"))
-      Some(bytes) => {
-        checked += 1
-        if digest(bytes) != hash {
-          issues.push(issue(Null, hash, "digest mismatch"))
+  // Every object in the chain is verified, referenced or not, so `valid` covers
+  // the bytes this snapshot depends on and not just the ones it stores.
+  let checked : Map[String, Bool] = Map([])
+  let sizes : Map[String, Double] = Map([])
+  let inherited : Map[String, Bool] = Map([])
+  let local_objects = obj(get(snapshot, "objects"))
+  let mut checked_count = 0
+  for index, link in links {
+    for hash, raw in link.objects {
+      if !is_object_id(hash) {
+        issues.push(issue(Null, hash, "invalid object identifier"))
+        continue
+      }
+      if index > 0 && !local_objects.contains(hash) {
+        inherited[hash] = true
+      }
+      if checked.contains(hash) {
+        continue
+      }
+      match decode_object(link.version, raw) {
+        None => issues.push(issue(Null, hash, "invalid object encoding"))
+        Some(bytes) => {
+          checked[hash] = true
+          checked_count += 1
+          sizes[hash] = bytes.length().to_double()
+          if digest(bytes) != hash {
+            issues.push(issue(Null, hash, "digest mismatch"))
+          }
         }
       }
+    }
+  }
+  let mut unreferenced = 0
+  for hash, _ in local_objects {
+    if !referenced.contains(hash) {
+      unreferenced += 1
     }
   }
   for file in files {
     let hash = str(get(file, "digest"))
     let path = String(str(get(file, "path")))
-    match objects.get(hash) {
+    match sizes.get(hash) {
       None => issues.push(issue(path, hash, "missing object"))
-      Some(raw) =>
-        match decode_object(version, raw) {
-          None => ()
-          Some(bytes) =>
-            if Number(bytes.length().to_double()) != get(file, "size") {
-              issues.push(issue(path, hash, "size mismatch"))
-            }
+      Some(size) =>
+        if Number(size) != get(file, "size") {
+          issues.push(issue(path, hash, "size mismatch"))
         }
     }
+  }
+  match missing {
+    Some(hash) => issues.push(issue(Null, hash, "missing parent snapshot"))
+    None => ()
   }
   record([
     ("valid", Bool(issues.is_empty())),
     ("issues", Array(issues)),
     ("format", Number(version.to_double())),
+    (
+      "parent",
+      match parent {
+        None => Null
+        Some(hash) => String(hash)
+      },
+    ),
+    ("chain_depth", Number(links.length().to_double())),
     ("files", Number(files.length().to_double())),
-    ("objects_total", Number(objects.length().to_double())),
-    ("objects_checked", Number(checked.to_double())),
+    ("objects_total", Number(local_objects.length().to_double())),
+    ("objects_inherited", Number(inherited.length().to_double())),
+    ("objects_checked", Number(checked_count.to_double())),
     ("referenced_objects", Number(referenced.length().to_double())),
     ("unreferenced_objects", Number(unreferenced.to_double())),
   ])
 }
 
 ///|
+pub fn audit_snapshot(snapshot : Value) -> Value raise {
+  audit_with(snapshot, [])
+}
+
+///|
 pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
   let before : Map[String, Value] = Map([])
   let after : Map[String, Value] = Map([])
-  for file in manifest(old).1 {
+  for file in manifest(old).2 {
     before[str(get(file, "path"))] = file
   }
-  for file in manifest(new).1 {
+  for file in manifest(new).2 {
     after[str(get(file, "path"))] = file
   }
   let added : Array[String] = []
@@ -341,23 +473,50 @@ pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
 pub fn create_snapshot(
   source : Array[Value],
   previous~ : Value = Null,
+  parents~ : Array[Value] = [],
   format~ : Int32 = 2,
 ) -> Value raise {
-  if format != 1 && format != 2 {
+  if format != 1 && format != 2 && format != 3 {
     raise InputError("unsupported snapshot format")
+  }
+  let parent_id : String? = if previous == Null {
+    None
+  } else {
+    Some(str(get(previous, "checksum")))
+  }
+  if parent_id is Some(_) && format < 3 {
+    raise InputError("a parent chain requires format 3")
   }
   let objects : Map[String, Value] = Map([])
   let files : Array[Value] = []
   let mut bytes_total = 0.0
   let mut unique_bytes = 0.0
   let mut new_bytes = 0.0
-  let prior = if previous == Null {
-    Map([])
-  } else {
-    if get(audit_snapshot(previous), "valid") != Bool(true) {
+  let mut reused_bytes = 0.0
+  let mut objects_reused = 0
+  // Digests the previous chain already stores. With format 3 those objects are
+  // left out of the new snapshot entirely, which is what makes it incremental.
+  let prior : Map[String, Bool] = Map([])
+  if previous != Null {
+    if get(audit_with(previous, parents), "valid") != Bool(true) {
       raise InputError("previous snapshot is corrupted")
     }
-    obj(get(previous, "objects"))
+    if format >= 3 {
+      let (links, missing) = resolve_chain(previous, parents)
+      match missing {
+        Some(hash) => raise InputError("missing parent snapshot " + hash)
+        None => ()
+      }
+      for link in links {
+        for hash, _ in link.objects {
+          prior[hash] = true
+        }
+      }
+    } else {
+      for hash, _ in obj(get(previous, "objects")) {
+        prior[hash] = true
+      }
+    }
   }
   for file in source {
     let path = str(get(file, "path"))
@@ -369,9 +528,15 @@ pub fn create_snapshot(
     bytes_total += bytes.length().to_double()
     if !objects.contains(hash) {
       unique_bytes += bytes.length().to_double()
-      objects[hash] = encode_object(format, bytes)
-      if !prior.contains(hash) {
+      if prior.contains(hash) {
+        reused_bytes += bytes.length().to_double()
+        objects_reused += 1
+        if format < 3 {
+          objects[hash] = encode_object(format, bytes)
+        }
+      } else {
         new_bytes += bytes.length().to_double()
+        objects[hash] = encode_object(format, bytes)
       }
     }
     let mode = optional_num(get(file, "mode"), 420.0)
@@ -388,12 +553,24 @@ pub fn create_snapshot(
     )
   }
   files.sort_by(fn(a, b) { lexical(path_of(a), path_of(b)) })
-  let snapshot = record([
+  let fields : Array[(String, Value)] = [
     ("version", Number(format.to_double())),
-    ("files", Array(files)),
-    ("objects", Object(objects)),
-    ("checksum", String(checksum(format, files))),
-  ])
+  ]
+  if format >= 3 {
+    fields.push(
+      (
+        "parent",
+        match parent_id {
+          None => Null
+          Some(hash) => String(hash)
+        },
+      ),
+    )
+  }
+  fields.push(("files", Array(files)))
+  fields.push(("objects", Object(objects)))
+  fields.push(("checksum", String(checksum(format, parent_id, files))))
+  let snapshot = record(fields)
   ignore(manifest(snapshot))
   record([
     ("snapshot", snapshot),
@@ -403,7 +580,10 @@ pub fn create_snapshot(
         ("total_bytes", Number(bytes_total)),
         ("unique_bytes", Number(unique_bytes)),
         ("new_object_bytes", Number(new_bytes)),
+        ("reused_object_bytes", Number(reused_bytes)),
         ("deduplicated_bytes", Number(bytes_total - unique_bytes)),
+        ("objects_stored", Number(objects.length().to_double())),
+        ("objects_reused", Number(objects_reused.to_double())),
       ]),
     ),
     (
@@ -423,8 +603,55 @@ fn requested_format(request : Value) -> Int32 raise {
     Null => 2
     Number(n) if n == 1.0 => 1
     Number(n) if n == 2.0 => 2
+    Number(n) if n == 3.0 => 3
     _ => raise InputError("unsupported snapshot format")
   }
+}
+
+///|
+/// `parents` carries the chain a format 3 delta depends on. It is ignored when
+/// the request has none, which is the self-contained case.
+fn request_parents(request : Value) -> Array[Value] {
+  match get(request, "parents") {
+    Array(items) => items
+    _ => {
+      let empty : Array[Value] = []
+      empty
+    }
+  }
+}
+
+///|
+/// Resolves every file through the chain and returns the payload in this
+/// snapshot's own encoding, so the host adapter decodes with one call.
+fn restore_with(snapshot : Value, parents : Array[Value]) -> Value raise {
+  let report = audit_with(snapshot, parents)
+  if get(report, "valid") != Bool(true) {
+    raise InputError("cannot restore corrupted snapshot")
+  }
+  let (version, _, listed) = manifest(snapshot)
+  let (links, _) = resolve_chain(snapshot, parents)
+  let files = listed.map(file => {
+    let hash = str(get(file, "digest"))
+    let payload = match object_payload(links, hash) {
+      Some((link_version, raw)) =>
+        match decode_object(link_version, raw) {
+          Some(bytes) => encode_object(version, bytes)
+          None => Null
+        }
+      None => Null
+    }
+    let result = obj(file).copy()
+    result["bytes"] = payload
+    Object(result)
+  })
+  record([
+    ("format", Number(version.to_double())),
+    ("encoding", String(if version == 1 { "decimal" } else { "base64" })),
+    ("chain_depth", get(report, "chain_depth")),
+    ("files", Array(files)),
+    ("verified", Bool(true)),
+  ])
 }
 
 ///|
@@ -435,32 +662,13 @@ pub fn run(request : Value) -> Value raise {
       create_snapshot(
         arr(get(request, "files")),
         previous=get(request, "previous"),
+        parents=request_parents(request),
         format=requested_format(request),
       )
-    "audit" => audit_snapshot(get(request, "snapshot"))
+    "audit" => audit_with(get(request, "snapshot"), request_parents(request))
     "diff" => diff_snapshots(get(request, "old"), get(request, "new"))
-    "restore" => {
-      let snapshot = get(request, "snapshot")
-      let report = audit_snapshot(snapshot)
-      if get(report, "valid") != Bool(true) {
-        raise InputError("cannot restore corrupted snapshot")
-      }
-      let (version, listed) = manifest(snapshot)
-      let objects = obj(get(snapshot, "objects"))
-      // The payload keeps the encoding it was validated in, so the host adapter
-      // never has to re-expand a decimal array it did not ask for.
-      let files = listed.map(file => {
-        let result = obj(file).copy()
-        result["bytes"] = objects[str(get(file, "digest"))]
-        Object(result)
-      })
-      record([
-        ("format", Number(version.to_double())),
-        ("encoding", String(if version == 1 { "decimal" } else { "base64" })),
-        ("files", Array(files)),
-        ("verified", Bool(true)),
-      ])
-    }
+    "restore" =>
+      restore_with(get(request, "snapshot"), request_parents(request))
     _ => raise InputError("unknown snapshot operation")
   }
 }

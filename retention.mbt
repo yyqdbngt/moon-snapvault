@@ -2,7 +2,7 @@
 pub fn retention_plan(request : Value) -> Value raise {
   let snapshots = arr(get(request, "snapshots"))
   let by_id : Map[String, Value] = Map([])
-  let objects : Map[String, Value] = Map([])
+  let objects : Map[String, Bool] = Map([])
   let sizes : Map[String, Double] = Map([])
   for entry in snapshots {
     let id = str(get(entry, "id"))
@@ -10,22 +10,35 @@ pub fn retention_plan(request : Value) -> Value raise {
       raise InputError("duplicate or empty snapshot identity")
     }
     let snapshot = get(entry, "snapshot")
-    if get(audit_snapshot(snapshot), "valid") != Bool(true) {
+    let parents = match get(entry, "parents") {
+      Array(items) => items
+      _ => {
+        let empty : Array[Value] = []
+        empty
+      }
+    }
+    if get(audit_with(snapshot, parents), "valid") != Bool(true) {
       raise InputError("retention refuses a corrupt snapshot")
     }
-    // audit_snapshot has already verified every stored object, referenced or not,
-    // so entries that share a digest carry the same bytes whatever their encoding.
-    // The decoded length is recorded because a base64 payload is longer than the
-    // bytes it represents and the plan must report byte counts, not text lengths.
-    let version = snapshot_version(snapshot)
-    for hash, raw in obj(get(snapshot, "objects")) {
-      if !objects.contains(hash) {
-        match decode_object(version, raw) {
-          Some(bytes) => {
-            objects[hash] = raw
-            sizes[hash] = bytes.length().to_double()
+    // The audit has verified every object in the chain, referenced or not, so a
+    // digest names the same bytes wherever it is stored. Decoded lengths are what
+    // the plan reports: a base64 payload is longer than the bytes it represents.
+    let (links, missing) = resolve_chain(snapshot, parents)
+    match missing {
+      Some(hash) =>
+        raise InputError("retention refuses a missing parent " + hash)
+      None => ()
+    }
+    for link in links {
+      for hash, raw in link.objects {
+        if !sizes.contains(hash) {
+          match decode_object(link.version, raw) {
+            Some(bytes) => {
+              objects[hash] = true
+              sizes[hash] = bytes.length().to_double()
+            }
+            None => raise InputError("retention refuses an undecodable object")
           }
-          None => raise InputError("retention refuses an undecodable object")
         }
       }
     }
@@ -43,7 +56,7 @@ pub fn retention_plan(request : Value) -> Value raise {
       raise InputError("duplicate or unknown retained snapshot")
     }
     selected[id] = true
-    for file in manifest(by_id[id]).1 {
+    for file in manifest(by_id[id]).2 {
       reachable[str(get(file, "digest"))] = true
     }
   }

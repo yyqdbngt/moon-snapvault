@@ -35,6 +35,24 @@ The core keeps the payload in its stored encoding; `scripts/filesystem.mjs` turn
 snapshots. The format and its compatibility rules are described in
 [snapshot format](snapshot-format.md).
 
+## Incremental snapshots
+
+`create` with a `previous` snapshot writes a format 3 delta that stores only the
+objects the chain lacks; the manifest still lists every path.
+
+| Request | Result |
+|---|---|
+| `{"format": 3, "previous": <base>, "files": [...]}` | delta: `parent` set, `objects` holds only new payloads |
+| `{"format": 3, "files": [...]}` | self-contained format 3, `"parent": null` |
+| `{"format": 2, "previous": <base>, "files": [...]}` | error: a parent chain needs format 3 |
+| `{"operation": "audit", "snapshot": <delta>, "parents": [<base>]}` | `chain_depth: 2`, `objects_inherited` |
+| `{"operation": "audit", "snapshot": <delta>}` | `valid: false`, `missing parent snapshot` |
+| `{"operation": "restore", "snapshot": <delta>, "parents": [<base>]}` | payload resolved through the chain |
+| `{"operation": "restore", "snapshot": <delta>}` | error: cannot restore corrupted snapshot |
+
+`parents` may be supplied in any order; links are matched by checksum. See
+[incremental snapshots](incremental.md).
+
 ## Audit report fields
 
 `{"operation": "audit", "snapshot": ...}` verifies every stored object, referenced or not.
@@ -44,6 +62,9 @@ snapshots. The format and its compatibility rules are described in
 | `valid` | no issue was found in this snapshot's bytes |
 | `issues` | list of `{path, object, reason}`; `path` is `null` when no file references the object |
 | `format` | snapshot format version that was validated |
+| `parent` | checksum of the parent snapshot, or `null` |
+| `chain_depth` | links walked, this snapshot counted first |
+| `objects_inherited` | unique objects supplied by ancestors |
 | `files` | number of manifest entries |
 | `objects_total` | number of stored objects |
 | `objects_checked` | objects whose bytes were decoded and hashed |

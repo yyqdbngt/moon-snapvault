@@ -140,12 +140,24 @@ test "retention mixes formats by digest" {
 ///|
 test "unsupported formats and content forms are refused" {
   let formats = try {
-    ignore(create_snapshot([], format=3))
+    ignore(create_snapshot([], format=4))
     false
   } catch {
     _ => true
   }
   assert_true(formats)
+  // A parent chain needs format 3; format 2 rejects one instead of ignoring it.
+  let chained = try {
+    let previous = get(
+      create_snapshot([record([("path", String("a")), ("text", String("x"))])]),
+      "snapshot",
+    )
+    ignore(create_snapshot([], previous~, format=2))
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(chained)
   let both = try {
     ignore(
       create_snapshot([

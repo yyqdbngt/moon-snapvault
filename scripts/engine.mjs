@@ -15,15 +15,36 @@ function cliPath() {
   throw new Error('Run `moon build --target js --release` first (or set MOON_BUILD=debug)');
 }
 
-export function engine(request) {
+// The core CLI rejects a request over 16 MiB. Callers that build large payloads
+// stringify once, check the size, and hand the text over here.
+export const REQUEST_LIMIT = 16 * 1024 * 1024;
+
+export function engineText(text) {
   const cli = cliPath();
   const result = spawnSync(process.execPath, [cli, '-'], {
-    input: JSON.stringify(request), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
-    timeout: 60000,
+    input: text, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+    timeout: 120000,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(result.stdout || result.stderr);
   return JSON.parse(result.stdout);
+}
+
+export function engine(request) {
+  return engineText(JSON.stringify(request));
+}
+
+// Reports the request size against the cap with the two halves that dominate it,
+// so a failing backup says what to do instead of "input exceeds 16 MiB".
+export function checkRequestSize(text, parts) {
+  if (text.length <= REQUEST_LIMIT) return text;
+  const detail = Object.entries(parts)
+    .map(([label, bytes]) => `${label} ${(bytes / 1048576).toFixed(2)} MiB`)
+    .join(' + ');
+  throw new Error(
+    `Snapshot request would be ${(text.length / 1048576).toFixed(2)} MiB, over the 16 MiB CLI cap (${detail}). ` +
+    'Lower SNAPVAULT_ADAPTER_LIMIT_BYTES or back up a smaller tree per snapshot.',
+  );
 }
 export function safeFile(base, name) {
   if (!name || name.includes('\\') || name.includes(':') || name.split('/').some(p => !p || p === '.' || p === '..')) throw new Error('Unsafe relative path');

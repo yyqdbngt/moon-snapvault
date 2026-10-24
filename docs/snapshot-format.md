@@ -1,9 +1,26 @@
 # Snapshot format
 
-A snapshot is one JSON object. Two versions exist; `create` writes version 2
-unless the request asks for `"format": 1`.
+A snapshot is one JSON object. Three versions exist; `create` writes version 2
+unless the request asks for `"format": 1` or supplies a `previous` snapshot,
+which produces a version 3 delta.
 
-## Version 2 (current)
+## Version 3 (current) - incremental
+
+Same as version 2 plus an optional `parent` field naming the snapshot this one
+builds on, and a checksum that covers it. `objects` holds only the payloads the
+chain does not already contain. See [incremental snapshots](incremental.md).
+
+```json
+{
+  "version": 3,
+  "parent": "<checksum of the parent snapshot, or null>",
+  "files": [ ... ],
+  "objects": { "<sha256 hex>": "<base64>" },
+  "checksum": "<sha256 hex>"
+}
+```
+
+## Version 2
 
 ```json
 {
@@ -23,6 +40,11 @@ unless the request asks for `"format": 1`.
 the byte length and the POSIX permission bits. `checksum` is
 `SHA-256(canonical({"version": 2, "files": [...]}))`, so the manifest is bound to
 the format that produced it.
+
+Canonical JSON sorts object keys by length first and then by code unit, which is
+MoonBit's default `String::compare`. That order is part of every released
+checksum and cannot change without invalidating existing files;
+`scripts/delta_reference.py` re-derives it in Python.
 
 ## Version 1 (previous, still read)
 
@@ -63,7 +85,7 @@ Measured on the reference host with moon 0.1.20261023 and Node 20.20.2.
 - A snapshot's `version` decides the accepted encoding. A decimal array inside a
   version 2 snapshot is reported as `invalid object encoding`, not silently
   accepted, and a string inside a version 1 snapshot fails the same way.
-- `audit`, `restore`, `diff` and `retention` read both versions. `restore`
+- `audit`, `restore`, `diff` and `retention` read every version. `restore`
   returns `format` and `encoding` (`base64` or `decimal`) with the payload in the
   encoding it validated.
 - `retention` may plan across versions. Entries that share a digest carry the

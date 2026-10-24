@@ -2,11 +2,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {engine, safeFile} from './engine.mjs';
+import {engine, engineText, checkRequestSize, safeFile} from './engine.mjs';
 
-// Format 2 carries base64, about 4/3 of the source size, so the adapter can take
+// Format 3 carries base64, about 4/3 of the source size, so the adapter can take
 // a larger tree while staying inside the core CLI's 16 MiB request cap.
 const ADAPTER_LIMIT = Number(process.env.SNAPVAULT_ADAPTER_LIMIT_BYTES || 8 * 1024 * 1024);
+
+// A delta request carries the new tree *and* the parent snapshot it diffs
+// against, so the 16 MiB request cap binds before the source cap does. Measure
+// what is actually sent rather than guessing.
+function send(request, parts) {
+  return engineText(checkRequestSize(JSON.stringify(request), parts));
+}
 
 function inside(child, parent) { return child === parent || child.startsWith(parent + path.sep); }
 
@@ -17,7 +24,21 @@ function warnNonPortable(files) {
   try { portablePaths(files); }
   catch (err) { console.error('warning: snapshot is not portable: ' + err.message); }
 }
-export function backup(source, destination, previous) {
+
+function readSnapshot(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+// The chain is whatever the caller names: a delta only knows the checksum of its
+// parent, so the files themselves have to be supplied on both sides.
+function readChain(files) {
+  return files.filter(Boolean).map(readSnapshot);
+}
+
+// `chain` lists the snapshots this one builds on, oldest or newest first; the
+// engine matches them by checksum. Passing `previous` makes the new snapshot a
+// format 3 delta that stores only objects the chain does not already hold.
+export function backup(source, destination, previous, chain = []) {
   const base = fs.realpathSync(source);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
@@ -42,15 +63,31 @@ export function backup(source, destination, previous) {
   }
   walk(base, '');
   warnNonPortable(files);
-  const result = engine({operation: 'create', files,
-    ...(previous ? {previous: JSON.parse(fs.readFileSync(previous, 'utf8'))} : {})});
+  const parentSnapshot = previous ? readSnapshot(previous) : null;
+  const parents = readChain(chain);
+  const request = {
+    operation: 'create',
+    format: previous ? 3 : 2,
+    files,
+    ...(previous ? {previous: parentSnapshot, parents} : {}),
+  };
+  const result = send(request, {
+    source: files.reduce((sum, file) => sum + file.content_base64.length, 0),
+    parent: parentSnapshot ? JSON.stringify(parentSnapshot).length : 0,
+    chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
+  });
   const tmp = output + '.' + randomUUID() + '.tmp';
   try {
     fs.writeFileSync(tmp, JSON.stringify(result.snapshot), {flag: 'wx'});
     // Exclusive publication prevents replacing an existing snapshot.
     fs.linkSync(tmp, output);
   } finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
-  return result.statistics;
+  return {
+    ...result.statistics,
+    format: result.snapshot.version,
+    parent: result.snapshot.parent ?? null,
+    snapshot_bytes: fs.statSync(output).size,
+  };
 }
 
 // Case and Unicode normalization are filesystem properties, not snapshot
@@ -69,10 +106,14 @@ export function portablePaths(files) {
   }
 }
 
-export function restore(snapshotFile, destination) {
-  // Verify every object before creating the destination.
-  const snapshot = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
-  const verified = engine({operation: 'restore', snapshot});
+export function restore(snapshotFile, destination, chain = []) {
+  // Verify the whole chain before creating the destination.
+  const snapshot = readSnapshot(snapshotFile);
+  const parents = readChain(chain);
+  const verified = send({operation: 'restore', snapshot, parents}, {
+    snapshot: JSON.stringify(snapshot).length,
+    chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
+  });
   portablePaths(verified.files);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
@@ -100,15 +141,22 @@ export function restore(snapshotFile, destination) {
     verified: true,
     encoding: verified.encoding,
     format: verified.format,
+    chain_depth: verified.chain_depth,
     modes_applied: modes,
   };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const [operation, source, destination, previous] = process.argv.slice(2);
-    if (!source || !destination) throw new Error('Usage: filesystem.mjs backup|restore source destination [previous]');
+    const [operation, source, destination, previous, ...chain] = process.argv.slice(2);
+    if (!source || !destination) {
+      throw new Error('Usage: filesystem.mjs backup SOURCE SNAPSHOT [PREVIOUS [PARENT...]] | restore SNAPSHOT DEST [PARENT...]');
+    }
     if (!['backup', 'restore'].includes(operation)) throw new Error('Unknown operation');
-    console.log(JSON.stringify(operation === 'backup' ? backup(source, destination, previous) : restore(source, destination)));
+    const result = operation === 'backup'
+      ? backup(source, destination, previous, chain)
+      // For restore the fourth argument starts the chain, not a previous file.
+      : restore(source, destination, [previous, ...chain]);
+    console.log(JSON.stringify(result));
   } catch (err) { console.error(err.message); process.exitCode = 1; }
 }
