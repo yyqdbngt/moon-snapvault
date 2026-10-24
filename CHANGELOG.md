@@ -37,9 +37,15 @@ resolves the published 0.2.0 until a release is published.
 - Two facts about the published version came out of building them: its `previous=` parameter
   changed only the statistics, so its deltas were self-contained and there is no 0.2.0 chain to
   extend; and it writes format 1 only, format 2 having been added after publication.
-- Verified by disabling the format 1 payload decoder: the test reports four readable failures
-  rather than a stack trace, which is how its first version behaved and what prompted fixing
-  the error handling.
+- The reverse direction is now asserted as well, and it is the stronger claim: asking the
+  current code for `format: 1` produces the same snapshot 0.2.0 produced from the same tree,
+  checksum `9d28a7f6...` and matching canonical forms. A file written today is therefore
+  indistinguishable from one written by the published version.
+- Verified three ways: disabling the format 1 payload decoder makes the fixtures unreadable,
+  dropping `version` from the format 1 checksum body makes every old file report a mismatch,
+  and writing base64 for format 1 trips the decimal assertion. Each yields named findings.
+- Fixed a flaw in the first version: a refusal in the diff block escaped as an exception, so a
+  broken build printed a stack trace instead of findings.
 
 ### Documented timings, re-measured and then guarded
 

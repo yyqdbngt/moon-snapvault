@@ -109,15 +109,16 @@ for (const file of restored.files) {
 }
 }
 
-// 3. Diff two published snapshots.
+// 3. Diff two published snapshots. Every assertion guards on the answer existing, so one
+// refusal produces one finding rather than a stack trace - the mistake this block made first.
 const diff = ask('diff', {operation: 'diff', old: first, new: second});
-if (diff === null) {
-  // Reported already.
-} else if (!Array.isArray(diff.added) || !diff.added.includes('new.txt')) {
-  problems.push('diff did not report new.txt as added: ' + JSON.stringify(diff).slice(0, 160));
-}
-if (!Array.isArray(diff.removed) || !diff.removed.includes('docs/b.md')) {
-  problems.push('diff did not report docs/b.md as removed');
+if (diff !== null) {
+  if (!Array.isArray(diff.added) || !diff.added.includes('new.txt')) {
+    problems.push('diff did not report new.txt as added: ' + JSON.stringify(diff).slice(0, 160));
+  }
+  if (!Array.isArray(diff.removed) || !diff.removed.includes('docs/b.md')) {
+    problems.push('diff did not report docs/b.md as removed');
+  }
 }
 
 // 4. Retention over published snapshots.
@@ -131,9 +132,65 @@ if (plan !== null && (!Array.isArray(plan.drop_snapshots) || plan.drop_snapshots
     + JSON.stringify(plan.drop_snapshots));
 }
 
+// 5. And the other direction: the current code, asked for format 1, must produce the same
+// snapshot the published version produced from the same tree.
+//
+// This is a stronger claim than "old files stay readable" - it says the two implementations
+// agree on what format 1 *is*, so a file written today is indistinguishable from one written
+// by 0.2.0. Without it, "format 1 still produces the old decimal layout" is a sentence nobody
+// checked.
+//
+// The comparison is on the canonical form, because that is what the checksum covers. Comparing
+// raw JSON would fail on key order - the fixtures were committed with sorted keys - and would
+// be testing the serializer rather than the format.
+{
+  const same = (a, b) => {
+    const canonical = (value) => {
+      if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
+      if (value && typeof value === 'object') {
+        return '{' + Object.keys(value)
+          .sort((left, right) => left.length - right.length
+            || (left < right ? -1 : left > right ? 1 : 0))
+          .map((key) => JSON.stringify(key) + ':' + canonical(value[key]))
+          .join(',') + '}';
+      }
+      return JSON.stringify(value);
+    };
+    return canonical(a) === canonical(b);
+  };
+
+  const written = ask('create format 1', {
+    format: 1,
+    files: [
+      {path: 'a.txt', text: 'abc'},
+      {path: 'docs/b.md', text: 'de'},
+      {path: 'bin.dat', bytes: [0, 255, 7]},
+    ],
+  });
+  if (written !== null) {
+    const snapshot = written.snapshot;
+    if (snapshot.version !== 1) {
+      problems.push(`create format 1 wrote version ${snapshot.version}`);
+    }
+    if (snapshot.checksum !== first.checksum) {
+      problems.push(`create format 1 checksum is ${snapshot.checksum}, the published version `
+        + `wrote ${first.checksum}`);
+    }
+    if (!same(snapshot, first)) {
+      problems.push('create format 1 no longer produces the published layout');
+    }
+    // The payloads must be decimal arrays, not base64: that is the whole difference between
+    // the two formats.
+    const payloads = Object.values(snapshot.objects ?? {});
+    if (!payloads.every((value) => Array.isArray(value))) {
+      problems.push('create format 1 wrote a non-decimal payload');
+    }
+  }
+}
+
 if (problems.length) {
   for (const problem of problems) console.error('compat: ' + problem);
   process.exit(1);
 }
-console.log('Compat: snapshots written by the published 0.2.0 still audit, restore, diff and '
-  + 'plan retention');
+console.log('Compat: 0.2.0 snapshots still audit, restore, diff and plan retention, and format 1 '
+  + 'written today matches what 0.2.0 wrote');

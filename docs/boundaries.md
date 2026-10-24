@@ -256,9 +256,21 @@ assumptions I would otherwise have got wrong:
   2, added after publication. So "both older formats stay readable" in the README refers to
   files the current code can write, plus these real ones.
 
-Verified load-bearing by disabling the format 1 payload decoder: the test then reports four
-readable failures - two snapshots that no longer audit clean, a refused restore and a refused
-retention plan - rather than the stack trace it produced before that was fixed.
+The reverse direction is tested too, and it is the stronger claim: the current code asked for
+`format: 1` must produce the same snapshot 0.2.0 produced from the same tree. It does - the
+checksum is `9d28a7f6...` from both, and the canonical forms match - so a file written today is
+indistinguishable from one written by the published version. The comparison is on the canonical
+form rather than raw JSON, because that is what the checksum covers; comparing raw text would
+fail on key order and would be testing the serializer rather than the format.
+
+Verified load-bearing three ways: disabling the format 1 payload decoder makes the fixtures
+unreadable, dropping `version` from the format 1 checksum body makes every old file report a
+checksum mismatch, and writing base64 for format 1 trips the decimal-array assertion. Each
+produces named findings rather than a stack trace.
+
+One mistake worth recording: the first version of this script let a refusal escape as an
+exception in the diff block, so a broken build printed a stack trace instead of four findings.
+Every assertion now guards on its answer existing.
 
 ### Documentation commands are executed, not just written
 
