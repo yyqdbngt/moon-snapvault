@@ -28,6 +28,21 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### A systematic mutation sweep over `audit`
+
+- `scripts/mutation_sweep.py`: mutates every field of a valid snapshot in turn - missing,
+  eleven wrong types, or a changed value - and predicts the verdict instead of recording
+  it. 197 mutants: 161 refused, 32 reported invalid with the expected reason, 4
+  legitimately valid.
+- The safety property it enforces: content changed without a recomputed checksum may
+  never come back `valid: true`. Verified the sweep is load-bearing by removing the digest
+  check (5 mutants slip through) and the size check (1 slips through).
+- It also pins three deliberate edges of the format that were previously only implied:
+  `parent` absent and `parent: null` are the same snapshot in format 3, a renamed path
+  with a recomputed checksum is a valid snapshot, and a mode change with a recomputed
+  checksum is reported valid - the documented boundary between integrity and
+  authentication.
+
 ### Failure messages, and the partial directory claim
 
 - The claim that a failed restore retains its partial directory had never been tested.

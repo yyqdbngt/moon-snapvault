@@ -42,6 +42,33 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Every field, mutated every way
+
+`robustness.py` asks whether an input yields one JSON object and a clean exit; it never
+looks at `valid`. `fuzz.py` does check verdicts, but on a few randomly chosen mutations
+per iteration. `scripts/mutation_sweep.py` closes that gap: it takes one valid snapshot,
+mutates every field in turn - delete it, set it to each of eleven wrong types, or change
+its value - and asserts the verdict every time.
+
+197 mutants, of which 161 are refused outright, 32 are reported invalid with the
+predicted reason, and 4 are legitimately valid. Two properties are asserted:
+
+- If a mutation changes content without recomputing the checksum, the answer may never
+  be `valid: true`. That is the failure this project exists to prevent.
+- Where the outcome is predictable, the exact verdict and the exact set of reasons must
+  match, because an "invalid" for the wrong reason is a bug a reader would find much
+  later.
+
+Breaking the digest check makes 5 mutants pass; breaking the size check makes 1. Both
+were verified by editing the core and watching the sweep fail.
+
+The 4 valid mutants are worth naming, since they are the format's deliberate edges:
+removing `parent` or setting it to `null` describes the same snapshot, because a format
+3 canonical form always carries that key; a renamed path with a recomputed checksum is
+a different but internally consistent snapshot; and a mode change with a recomputed
+checksum is reported valid, which is the documented limit of an integrity check that is
+not a signature.
+
 ### What a failed restore leaves behind
 
 The documented promise is that a failed write retains the new partial directory for

@@ -45,6 +45,7 @@ jobs:
       - run: python3 -B scripts/followup_reference.py
       - run: python3 -B scripts/delta_reference.py
       - run: python3 -B scripts/robustness.py
+      - run: python3 -B scripts/mutation_sweep.py
       - run: python3 -B scripts/fuzz.py 8
       - run: node scripts/integration.mjs
   # The path rules exist for case-insensitive, Unicode-normalising filesystems, and
@@ -75,6 +76,7 @@ jobs:
       - run: node scripts/stats.mjs
       - run: node scripts/consumer-smoke.mjs
       - run: python3 -B scripts/robustness.py
+      - run: python3 -B scripts/mutation_sweep.py
       - run: node scripts/integration.mjs
   # Windows is the only platform whose rules the other jobs cannot exercise: the
   # adapter's portability check has a win32 branch that refuses device names,
