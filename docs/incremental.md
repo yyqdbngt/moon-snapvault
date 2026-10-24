@@ -111,6 +111,22 @@ through the chain. A path that matches nothing fails with
 `restore path not found in snapshot: <path>` rather than silently restoring less
 than asked for; unsafe or empty selections are refused outright.
 
+## How this is checked
+
+`scripts/fuzz.py` is a seeded differential test: for each iteration it builds a
+random tree, a random chain and a random selection, then recomputes every
+expected value from the snapshot JSON with `hashlib`/`base64` alone and compares
+it with the core's answer for `create`, `audit`, `restore`, `diff`, `squash` and
+`retention`. It also applies deliberate mutations - a flipped payload byte, a
+decimal payload where base64 belongs, a dropped object, an unreferenced object
+with a good and a bad key, a bad object identifier, a re-signed manifest with a
+duplicate path or a traversal, a size that disagrees with its payload - and
+predicts each verdict independently rather than recording what the core says.
+
+A failure prints the seed, so it is reproducible with `--seed`. The default run
+in `verify.sh` is short; `FUZZ_ITERATIONS=40 sh scripts/verify.sh` is the deeper
+pass used while developing this format.
+
 ## Cost
 
 | | base | delta |

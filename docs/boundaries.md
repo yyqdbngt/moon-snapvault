@@ -12,6 +12,11 @@ delta needs every link: `audit`, `restore` and `retention` take the chain as a
 list, match it by checksum, verify every link, and walk at most 64 links. A
 missing link is reported as `missing parent snapshot`; a cycle is refused.
 
+Randomized differential testing (`scripts/fuzz.py`) covers the operations and the
+mutations listed in [incremental snapshots](incremental.md), but it is not a
+proof and not a substitute for fuzzing the JSON parser itself; malformed JSON past
+the parser's own errors is out of scope.
+
 `squash` folds a chain into one self-contained snapshot and drops objects no file
 references; it is the only way this project frees space, and `retention` still
 only plans. `restore` takes an optional `paths` selection that must match at

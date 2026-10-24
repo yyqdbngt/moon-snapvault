@@ -239,6 +239,62 @@ test "restore refuses an unknown or unsafe selection" {
 }
 
 ///|
+test "a trailing separator selects the same subtree" {
+  let chain = chain_of_three()
+  let tip = chain[2]
+  let parents = [chain[0], chain[1]]
+  let plain = restore_with(tip, parents, { prefixes: Some(["docs"]), })
+  // The separator is stripped while the request is parsed, so this goes through
+  // `run` the way a real request does.
+  let slashed = run(
+    record([
+      ("operation", String("restore")),
+      ("snapshot", tip),
+      ("parents", Array(parents)),
+      ("paths", strings(["docs/"])),
+    ]),
+  )
+  assert_eq(
+    paths_of(arr(get(slashed, "files"))),
+    paths_of(arr(get(plain, "files"))),
+  )
+  assert_eq(get(slashed, "selected"), Number(2.0))
+  // Only separators are trimmed: the rest of the path rules still apply.
+  let dotdot = try {
+    ignore(
+      run(
+        record([
+          ("operation", String("restore")),
+          ("snapshot", tip),
+          ("parents", Array(parents)),
+          ("paths", strings(["../"])),
+        ]),
+      ),
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(dotdot)
+  let root = try {
+    ignore(
+      run(
+        record([
+          ("operation", String("restore")),
+          ("snapshot", tip),
+          ("parents", Array(parents)),
+          ("paths", strings(["/"])),
+        ]),
+      ),
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(root)
+}
+
+///|
 test "squash then restore needs no chain" {
   let chain = chain_of_three()
   let squashed = get(

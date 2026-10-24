@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
 # Runs the full local verification ladder in one command.
 #
-#   sh scripts/verify.sh              # four backends, then the host checks
+#   sh scripts/verify.sh                    # four backends, then the host checks
 #   SKIP_NATIVE=1 sh scripts/verify.sh
+#   FUZZ_ITERATIONS=40 sh scripts/verify.sh # deeper randomized coverage
 #
 # Native builds need a C compiler. On hosts where `cc` is shadowed by a wrapper
 # script, point MOON_CC at a real compiler, for example MOON_CC=/usr/bin/gcc.
@@ -33,6 +34,9 @@ node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py
 python3 -B scripts/delta_reference.py
+# Randomized differential test. FUZZ_ITERATIONS trades time for coverage; the
+# default is small enough for CI and still exercises every seeded path.
+python3 -B scripts/fuzz.py "${FUZZ_ITERATIONS:-6}"
 node scripts/integration.mjs
 moon fmt --check >/dev/null
 echo "verify: ok"

@@ -41,3 +41,4 @@ jobs:
       - run: python -B scripts/followup_reference.py
       - run: python -B scripts/delta_reference.py
       - run: node scripts/stats.mjs
+      - run: python -B scripts/fuzz.py 8

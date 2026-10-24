@@ -646,10 +646,18 @@ fn request_selection(request : Value) -> Selection raise {
       let prefixes : Array[String] = []
       for item in items {
         let raw = str(item)
-        if !safe_path(raw) {
+        // A trailing separator is what shell completion produces; it selects the
+        // same subtree, so it is stripped rather than rejected. Everything else
+        // goes through the manifest rules unchanged.
+        let mut normalized = raw
+        while normalized.length() > 0 &&
+              normalized.unsafe_get(normalized.length() - 1) == '/' {
+          normalized = normalized[:normalized.length() - 1].to_owned()
+        }
+        if !safe_path(normalized) {
           raise InputError("unsafe restore path: " + raw)
         }
-        prefixes.push(raw)
+        prefixes.push(normalized)
       }
       if prefixes.is_empty() {
         raise InputError("paths must name at least one path")

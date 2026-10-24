@@ -28,6 +28,15 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Verification
+
+- `scripts/fuzz.py`: seeded differential test against an independent oracle
+  covering `create`, `audit`, `restore`, `diff`, `squash`, `retention` and eight
+  mutation classes, with reproducible seeds. Wired into `verify.sh` and CI.
+- `restore` strips trailing separators from `paths`, so `--path docs/` selects
+  `docs` instead of failing as unsafe; traversal and absolute paths are still
+  refused.
+
 ### Chain management
 
 - `squash` compacts a chain into one self-contained snapshot in any of the three
