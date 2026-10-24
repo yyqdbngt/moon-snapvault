@@ -1,5 +1,5 @@
 """Independent follow-up oracles over synthetic deterministic inputs."""
-import collections,copy,hashlib,json,math,random,subprocess
+import base64,collections,copy,hashlib,json,math,random,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 random.seed(20261018)
@@ -19,6 +19,13 @@ for i in range(10):
     digest=lambda s:hashlib.sha256(s.encode()).hexdigest()
     assert set(report['reachable_objects'])=={digest(shared),digest(recent)}
     assert report['collectible_objects']==[digest(obsolete)] and report['collectible_bytes']==len(obsolete.encode())
-    corrupted=copy.deepcopy(request); key=next(iter(corrupted['snapshots'][0]['snapshot']['objects'])); corrupted['snapshots'][0]['snapshot']['objects'][key][0]^=1
+    # Objects are base64 text in format 2, so corrupt the decoded byte instead of
+    # a decimal digit and let the digest check be the thing that catches it.
+    corrupted=copy.deepcopy(request)
+    snapshot=corrupted['snapshots'][0]['snapshot']
+    key=next(iter(snapshot['objects']))
+    raw=bytearray(base64.b64decode(snapshot['objects'][key]))
+    raw[0]^=1
+    snapshot['objects'][key]=base64.b64encode(bytes(raw)).decode()
     run(corrupted,error=True)
 print('Retention: 10 independent SHA-256 reachability sets and corruption rejection passed')

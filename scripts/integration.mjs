@@ -30,7 +30,9 @@ try {
   assert.equal(diff.modified.length, 1);
 
   const digest = snapshot.files[0].digest;
-  snapshot.objects[digest][0] ^= 1;
+  // Payloads are base64 in format 2: swap the stored text for a different byte
+  // sequence of the same length so only the digest can catch the change.
+  snapshot.objects[digest] = Buffer.from('not the original bytes').toString('base64');
   assert.equal(engine({operation: 'audit', snapshot}).valid, false);
   const corrupt = path.join(base, 'corrupt.json');
   fs.writeFileSync(corrupt, JSON.stringify(snapshot));
@@ -41,13 +43,21 @@ try {
   // An unreferenced object that does not match its key is corruption too, and
   // restore must not create the destination for it.
   const valid = JSON.parse(fs.readFileSync(two, 'utf8'));
-  valid.objects['0'.repeat(64)] = [1, 2, 3];
+  valid.objects['0'.repeat(64)] = [1, 2, 3];  // decimal payload under a base64 format
   const spareCorrupt = path.join(base, 'spare-corrupt.json');
   fs.writeFileSync(spareCorrupt, JSON.stringify(valid));
   assert.equal(engine({operation: 'audit', snapshot: valid}).valid, false);
   const spareTarget = path.join(base, 'spare-target');
   assert.throws(() => restore(spareCorrupt, spareTarget));
   assert.equal(fs.existsSync(spareTarget), false);
+
+  // Format 2 stores base64 text; a decimal payload under it is refused, and the
+  // snapshot advertises its encoding so the adapter does not guess.
+  assert.equal(snapshot.version, 2, 'create defaults to format 2');
+  assert.equal(typeof snapshot.objects[digest], 'string', 'object payload is base64 text');
+  const restoreResult = restore(two, path.join(base, 'encoding-out'));
+  assert.equal(restoreResult.encoding, 'base64');
+  assert.equal(restoreResult.format, 2);
 
   // Permission bits survive the process umask.
   fs.writeFileSync(path.join(source, 'run.sh'), '#!/bin/sh\n');

@@ -372,5 +372,298 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "format 2 stores base64 payloads",
+    "request": {
+      "files": [
+        {
+          "path": "a",
+          "text": "abc"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/version": 2,
+      "snapshot/checksum": "a253b85efb3b34b8b08e9a56ffad86a275a0066f46ed52505b2bee9125422f51",
+      "snapshot/objects/ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj",
+      "statistics/total_bytes": 3
+    },
+    "error": false
+  },
+  {
+    "name": "format 1 stays available and unchanged",
+    "request": {
+      "files": [
+        {
+          "path": "a",
+          "text": "abc"
+        }
+      ],
+      "format": 1
+    },
+    "expected": {
+      "snapshot/version": 1,
+      "snapshot/checksum": "0a40f4e35fc7f7c8c9a84d28fdca50f28f20aba51cf413b930517168b07547a8",
+      "snapshot/objects/ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+        97,
+        98,
+        99
+      ]
+    },
+    "error": false
+  },
+  {
+    "name": "content_base64 is accepted as file input",
+    "request": {
+      "files": [
+        {
+          "path": "z.bin",
+          "content_base64": "AP8H"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/files/0/digest": "92e469e6f34332f611f46cc5371592264628458db80d2a9c40310daec8384d23",
+      "snapshot/files/0/size": 3,
+      "statistics/total_bytes": 3
+    },
+    "error": false
+  },
+  {
+    "name": "restore of format 2 reports base64",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "a",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "a253b85efb3b34b8b08e9a56ffad86a275a0066f46ed52505b2bee9125422f51"
+      }
+    },
+    "expected": {
+      "format": 2,
+      "encoding": "base64",
+      "verified": true,
+      "files/0/bytes": "YWJj",
+      "files/0/size": 3,
+      "files/0/mode": 420
+    },
+    "error": false
+  },
+  {
+    "name": "restore of format 1 reports decimal",
+    "request": {
+      "operation": "restore",
+      "snapshot": {
+        "version": 1,
+        "files": [
+          {
+            "path": "a",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+            97,
+            98,
+            99
+          ]
+        },
+        "checksum": "0a40f4e35fc7f7c8c9a84d28fdca50f28f20aba51cf413b930517168b07547a8"
+      }
+    },
+    "expected": {
+      "format": 1,
+      "encoding": "decimal",
+      "verified": true,
+      "files/0/bytes/0": 97,
+      "files/0/bytes/2": 99
+    },
+    "error": false
+  },
+  {
+    "name": "audit reports the snapshot format",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 1,
+        "files": [
+          {
+            "path": "a",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+            97,
+            98,
+            99
+          ]
+        },
+        "checksum": "0a40f4e35fc7f7c8c9a84d28fdca50f28f20aba51cf413b930517168b07547a8"
+      }
+    },
+    "expected": {
+      "valid": true,
+      "format": 1,
+      "objects_total": 1,
+      "objects_checked": 1
+    },
+    "error": false
+  },
+  {
+    "name": "format 2 refuses a decimal payload",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "a",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+            97,
+            98,
+            99
+          ]
+        },
+        "checksum": "a253b85efb3b34b8b08e9a56ffad86a275a0066f46ed52505b2bee9125422f51"
+      }
+    },
+    "expected": {
+      "valid": false,
+      "format": 2,
+      "issues/0/reason": "invalid object encoding",
+      "issues/0/object": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    "error": false
+  },
+  {
+    "name": "retention mixes formats by digest",
+    "request": {
+      "operation": "retention",
+      "snapshots": [
+        {
+          "id": "old",
+          "snapshot": {
+            "version": 1,
+            "files": [
+              {
+                "path": "a",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+                97,
+                98,
+                99
+              ],
+              "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": [
+                122,
+                122
+              ]
+            },
+            "checksum": "0a40f4e35fc7f7c8c9a84d28fdca50f28f20aba51cf413b930517168b07547a8"
+          }
+        },
+        {
+          "id": "new",
+          "snapshot": {
+            "version": 2,
+            "files": [
+              {
+                "path": "a",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+            },
+            "checksum": "a253b85efb3b34b8b08e9a56ffad86a275a0066f46ed52505b2bee9125422f51"
+          }
+        }
+      ],
+      "keep": [
+        "new"
+      ]
+    },
+    "expected": {
+      "keep_snapshots": [
+        "new"
+      ],
+      "drop_snapshots": [
+        "old"
+      ],
+      "reachable_objects": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ],
+      "collectible_objects": [
+        "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+      ],
+      "live_bytes": 3,
+      "collectible_bytes": 2,
+      "plan_only": true
+    },
+    "error": false
+  },
+  {
+    "name": "invalid base64 content is refused",
+    "request": {
+      "files": [
+        {
+          "path": "a",
+          "content_base64": "not base64!"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "two content fields are refused",
+    "request": {
+      "files": [
+        {
+          "path": "a",
+          "text": "x",
+          "content_base64": "eA=="
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "unsupported snapshot format is refused",
+    "request": {
+      "files": [],
+      "format": 3
+    },
+    "expected": {},
+    "error": true
   }
 ]

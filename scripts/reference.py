@@ -1,4 +1,5 @@
 """Independent Python standard library oracles; deterministic synthetic data."""
+import base64
 import hashlib
 import json
 import random
@@ -38,10 +39,37 @@ result = run({'files': files})
 expected = {f['path']: hashlib.sha256(bytes(f['bytes'])).hexdigest() for f in files}
 for f in result['snapshot']['files']:
     assert f['digest'] == expected[f['path']]
+def payload(restored):
+    """Restore returns the payload in the snapshot's own encoding."""
+    assert restored['encoding'] == 'base64', restored['encoding']
+    return {f['path']: list(base64.b64decode(f['bytes'], validate=True)) for f in restored['files']}
+
+
 restored = run({'operation': 'restore', 'snapshot': result['snapshot']})
-assert {f['path']: f['bytes'] for f in restored['files']} == {f['path']: f['bytes'] for f in files}
-assert run({'operation': 'audit', 'snapshot': result['snapshot']})['valid']
+assert payload(restored) == {f['path']: f['bytes'] for f in files}
+report = run({'operation': 'audit', 'snapshot': result['snapshot']})
+assert report['valid'] and report['format'] == 2, report
 print('Python hashlib oracle: 30 binary inputs, SHA256, audit and verified restore passed')
+
+# The previous on-disk format is still readable and still usable as input.
+legacy = run({'format': 1, 'files': [{'path': 'legacy.bin', 'bytes': [0, 255, 7]}]})['snapshot']
+assert legacy['version'] == 1, legacy['version']
+assert legacy['objects'][legacy['files'][0]['digest']] == [0, 255, 7], legacy['objects']
+legacy_restore = run({'operation': 'restore', 'snapshot': legacy})
+assert legacy_restore['encoding'] == 'decimal', legacy_restore['encoding']
+assert legacy_restore['files'][0]['bytes'] == [0, 255, 7]
+assert run({'operation': 'audit', 'snapshot': legacy})['format'] == 1
+
+# A version 2 snapshot stores base64 and rejects a decimal payload.
+current = run({'files': [{'path': 'b64.bin', 'content_base64': 'AP8H'}]})['snapshot']
+assert current['version'] == 2, current['version']
+assert current['objects'] == {legacy['files'][0]['digest']: 'AP8H'}, current['objects']
+mixed = json.loads(json.dumps(current))
+mixed['objects'][legacy['files'][0]['digest']] = [0, 255, 7]
+assert run({'operation': 'audit', 'snapshot': mixed})['valid'] is False
+refused = cli_run(['-'], stdin=json.dumps({'operation': 'restore', 'snapshot': mixed}))
+assert refused.returncode == 1, refused.returncode
+print('Format oracle: v1 decimal and v2 base64 both audit and restore; mixed encodings are refused')
 
 # --- audit covers every stored object, referenced or not -------------------
 base = run({'files': [{'path': 'a', 'text': 'abc'}]})['snapshot']

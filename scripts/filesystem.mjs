@@ -4,6 +4,10 @@ import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {engine, safeFile} from './engine.mjs';
 
+// Format 2 carries base64, about 4/3 of the source size, so the adapter can take
+// a larger tree while staying inside the core CLI's 16 MiB request cap.
+const ADAPTER_LIMIT = Number(process.env.SNAPVAULT_ADAPTER_LIMIT_BYTES || 8 * 1024 * 1024);
+
 function inside(child, parent) { return child === parent || child.startsWith(parent + path.sep); }
 
 // A case-sensitive source can hold names that collide on a case-insensitive or
@@ -29,8 +33,10 @@ export function backup(source, destination, previous) {
       if (stat.isDirectory()) walk(absolute, name);
       else if (stat.isFile()) {
         total += stat.size;
-        if (total > 1024 * 1024) throw new Error('JSON snapshot adapter limit is 1 MiB per backup');
-        files.push({path: name, bytes: [...fs.readFileSync(absolute)], mode: stat.mode & 0o777});
+        if (total > ADAPTER_LIMIT) throw new Error(`JSON snapshot adapter limit is ${ADAPTER_LIMIT / 1048576} MiB of source bytes per backup`);
+        // Base64 keeps the request near 4/3 of the source size instead of the
+        // up to 4x of a decimal byte array, and skips a 1M-element JSON array.
+        files.push({path: name, content_base64: fs.readFileSync(absolute).toString('base64'), mode: stat.mode & 0o777});
       } else throw new Error('Special files are unsupported');
     }
   }
@@ -75,8 +81,11 @@ export function restore(snapshotFile, destination) {
   try {
     for (const file of verified.files) {
       const absolute = safeFile(output, file.path);
+      const payload = verified.encoding === 'base64'
+        ? Buffer.from(file.bytes, 'base64')
+        : Buffer.from(file.bytes);
       fs.mkdirSync(path.dirname(absolute), {recursive: true});
-      fs.writeFileSync(absolute, Buffer.from(file.bytes), {flag: 'wx', mode: file.mode});
+      fs.writeFileSync(absolute, payload, {flag: 'wx', mode: file.mode});
       // writeFileSync applies the mode through the process umask; chmod restores
       // the recorded permission bits regardless of the umask.
       fs.chmodSync(absolute, file.mode);
@@ -86,7 +95,13 @@ export function restore(snapshotFile, destination) {
     // Retain the new partial destination for inspection; no original files are touched.
     throw new Error('Restore failed; partial destination retained: ' + err.message);
   }
-  return {files: verified.files.length, verified: true, modes_applied: modes};
+  return {
+    files: verified.files.length,
+    verified: true,
+    encoding: verified.encoding,
+    format: verified.format,
+    modes_applied: modes,
+  };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

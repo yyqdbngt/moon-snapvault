@@ -70,15 +70,17 @@ fn is_byte(number : Double) -> Bool {
 fn decode_bytes_opt(value : Value) -> Bytes? {
   match value {
     Array(values) => {
-      let bytes : Array[Byte] = []
-      for item in values {
-        match item {
-          Number(number) if is_byte(number) =>
-            bytes.push(number.to_int().to_byte())
-          _ => return None
-        }
+      let decoded = Some(
+        Bytes::makei(values.length(), fn(i) raise {
+          match values[i] {
+            Number(number) if is_byte(number) => number.to_int().to_byte()
+            _ => raise InputError("invalid byte value")
+          }
+        }),
+      ) catch {
+        _ => None
       }
-      Some(Bytes::from_array(bytes))
+      decoded
     }
     _ => None
   }
@@ -93,35 +95,100 @@ fn decode_bytes(value : Value) -> Bytes raise {
 }
 
 ///|
-fn content(file : Value) -> Bytes raise {
-  let text = get(file, "text")
-  let bytes = get(file, "bytes")
-  if text != Null && bytes != Null {
-    raise InputError("file cannot provide text and bytes together")
-  }
-  if text != Null {
-    @utf8.encode(str(text))
-  } else {
-    decode_bytes(bytes)
+/// Base64 is the compact wire form: one byte costs four characters instead of
+/// the up to four characters of a decimal array, and it avoids materialising a
+/// JSON array of numbers for every file.
+fn base64_to_bytes(text : String) -> Bytes? {
+  Some(@base64.decode(text[:])) catch {
+    _ => None
   }
 }
 
 ///|
-fn checksum(files : Array[Value]) -> String {
+fn encode_object(version : Int32, bytes : Bytes) -> Value {
+  if version == 1 {
+    bytes_value(bytes)
+  } else {
+    String(@base64.encode(bytes[:]))
+  }
+}
+
+///|
+fn decode_object(version : Int32, raw : Value) -> Bytes? {
+  if version == 1 {
+    decode_bytes_opt(raw)
+  } else {
+    match raw {
+      String(text) => base64_to_bytes(text)
+      _ => None
+    }
+  }
+}
+
+///|
+fn content(file : Value) -> Bytes raise {
+  let text = get(file, "text")
+  let bytes = get(file, "bytes")
+  let encoded = get(file, "content_base64")
+  let mut provided = 0
+  if text != Null {
+    provided += 1
+  }
+  if bytes != Null {
+    provided += 1
+  }
+  if encoded != Null {
+    provided += 1
+  }
+  if provided != 1 {
+    raise InputError(
+      "file must provide exactly one of text, bytes or content_base64",
+    )
+  }
+  if text != Null {
+    @utf8.encode(str(text))
+  } else if bytes != Null {
+    decode_bytes(bytes)
+  } else {
+    match base64_to_bytes(str(encoded)) {
+      Some(decoded) => decoded
+      None => raise InputError("invalid content_base64")
+    }
+  }
+}
+
+///|
+fn checksum(version : Int32, files : Array[Value]) -> String {
   digest(
     @utf8.encode(
-      canonical(record([("version", Number(1.0)), ("files", Array(files))])),
+      canonical(
+        record([
+          ("version", Number(version.to_double())),
+          ("files", Array(files)),
+        ]),
+      ),
     ),
   )
 }
 
 ///|
-fn manifest(snapshot : Value) -> Array[Value] raise {
-  if get(snapshot, "version") != Number(1.0) {
-    raise InputError("unsupported snapshot version")
+/// Version 1 stores object payloads as arrays of decimal byte values; version 2
+/// stores them as base64 text. Both are readable; `create` writes version 2
+/// unless the request asks for `"format": 1`.
+fn snapshot_version(snapshot : Value) -> Int32 raise {
+  match get(snapshot, "version") {
+    Number(n) if n == 1.0 => 1
+    Number(n) if n == 2.0 => 2
+    _ => raise InputError("unsupported snapshot version")
   }
+}
+
+///|
+/// Returns the snapshot format version together with its validated files.
+fn manifest(snapshot : Value) -> (Int32, Array[Value]) raise {
+  let version = snapshot_version(snapshot)
   let files = arr(get(snapshot, "files"))
-  if get(snapshot, "checksum") != String(checksum(files)) {
+  if get(snapshot, "checksum") != String(checksum(version, files)) {
     raise InputError("manifest checksum mismatch")
   }
   let paths : Map[String, Bool] = Map([])
@@ -169,7 +236,7 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
       }
     }
   }
-  files
+  (version, files)
 }
 
 ///|
@@ -191,7 +258,7 @@ fn issue(path : Value, object : String, reason : String) -> Value {
 
 ///|
 pub fn audit_snapshot(snapshot : Value) -> Value raise {
-  let files = manifest(snapshot)
+  let (version, files) = manifest(snapshot)
   let objects = obj(get(snapshot, "objects"))
   let issues : Array[Value] = []
   let referenced : Map[String, Bool] = Map([])
@@ -210,8 +277,8 @@ pub fn audit_snapshot(snapshot : Value) -> Value raise {
     if !referenced.contains(hash) {
       unreferenced += 1
     }
-    match decode_bytes_opt(raw) {
-      None => issues.push(issue(Null, hash, "invalid byte encoding"))
+    match decode_object(version, raw) {
+      None => issues.push(issue(Null, hash, "invalid object encoding"))
       Some(bytes) => {
         checked += 1
         if digest(bytes) != hash {
@@ -226,7 +293,7 @@ pub fn audit_snapshot(snapshot : Value) -> Value raise {
     match objects.get(hash) {
       None => issues.push(issue(path, hash, "missing object"))
       Some(raw) =>
-        match decode_bytes_opt(raw) {
+        match decode_object(version, raw) {
           None => ()
           Some(bytes) =>
             if Number(bytes.length().to_double()) != get(file, "size") {
@@ -238,6 +305,7 @@ pub fn audit_snapshot(snapshot : Value) -> Value raise {
   record([
     ("valid", Bool(issues.is_empty())),
     ("issues", Array(issues)),
+    ("format", Number(version.to_double())),
     ("files", Number(files.length().to_double())),
     ("objects_total", Number(objects.length().to_double())),
     ("objects_checked", Number(checked.to_double())),
@@ -250,10 +318,10 @@ pub fn audit_snapshot(snapshot : Value) -> Value raise {
 pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
   let before : Map[String, Value] = Map([])
   let after : Map[String, Value] = Map([])
-  for file in manifest(old) {
+  for file in manifest(old).1 {
     before[str(get(file, "path"))] = file
   }
-  for file in manifest(new) {
+  for file in manifest(new).1 {
     after[str(get(file, "path"))] = file
   }
   let added : Array[String] = []
@@ -284,7 +352,11 @@ pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
 pub fn create_snapshot(
   source : Array[Value],
   previous~ : Value = Null,
+  format~ : Int32 = 2,
 ) -> Value raise {
+  if format != 1 && format != 2 {
+    raise InputError("unsupported snapshot format")
+  }
   let objects : Map[String, Value] = Map([])
   let files : Array[Value] = []
   let mut bytes_total = 0.0
@@ -308,7 +380,7 @@ pub fn create_snapshot(
     bytes_total += bytes.length().to_double()
     if !objects.contains(hash) {
       unique_bytes += bytes.length().to_double()
-      objects[hash] = bytes_value(bytes)
+      objects[hash] = encode_object(format, bytes)
       if !prior.contains(hash) {
         new_bytes += bytes.length().to_double()
       }
@@ -328,10 +400,10 @@ pub fn create_snapshot(
   }
   files.sort_by(fn(a, b) { lexical(path_of(a), path_of(b)) })
   let snapshot = record([
-    ("version", Number(1.0)),
+    ("version", Number(format.to_double())),
     ("files", Array(files)),
     ("objects", Object(objects)),
-    ("checksum", String(checksum(files))),
+    ("checksum", String(checksum(format, files))),
   ])
   ignore(manifest(snapshot))
   record([
@@ -357,6 +429,16 @@ pub fn create_snapshot(
 }
 
 ///|
+fn requested_format(request : Value) -> Int32 raise {
+  match get(request, "format") {
+    Null => 2
+    Number(n) if n == 1.0 => 1
+    Number(n) if n == 2.0 => 2
+    _ => raise InputError("unsupported snapshot format")
+  }
+}
+
+///|
 pub fn run(request : Value) -> Value raise {
   match optional_str(get(request, "operation"), "create") {
     "retention" => retention_plan(request)
@@ -364,6 +446,7 @@ pub fn run(request : Value) -> Value raise {
       create_snapshot(
         arr(get(request, "files")),
         previous=get(request, "previous"),
+        format=requested_format(request),
       )
     "audit" => audit_snapshot(get(request, "snapshot"))
     "diff" => diff_snapshots(get(request, "old"), get(request, "new"))
@@ -373,13 +456,21 @@ pub fn run(request : Value) -> Value raise {
       if get(report, "valid") != Bool(true) {
         raise InputError("cannot restore corrupted snapshot")
       }
+      let (version, listed) = manifest(snapshot)
       let objects = obj(get(snapshot, "objects"))
-      let files = manifest(snapshot).map(file => {
+      // The payload keeps the encoding it was validated in, so the host adapter
+      // never has to re-expand a decimal array it did not ask for.
+      let files = listed.map(file => {
         let result = obj(file).copy()
         result["bytes"] = objects[str(get(file, "digest"))]
         Object(result)
       })
-      record([("files", Array(files)), ("verified", Bool(true))])
+      record([
+        ("format", Number(version.to_double())),
+        ("encoding", String(if version == 1 { "decimal" } else { "base64" })),
+        ("files", Array(files)),
+        ("verified", Bool(true)),
+      ])
     }
     _ => raise InputError("unknown snapshot operation")
   }

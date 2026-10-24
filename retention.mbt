@@ -3,6 +3,7 @@ pub fn retention_plan(request : Value) -> Value raise {
   let snapshots = arr(get(request, "snapshots"))
   let by_id : Map[String, Value] = Map([])
   let objects : Map[String, Value] = Map([])
+  let sizes : Map[String, Double] = Map([])
   for entry in snapshots {
     let id = str(get(entry, "id"))
     if id == "" || by_id.contains(id) {
@@ -12,14 +13,20 @@ pub fn retention_plan(request : Value) -> Value raise {
     if get(audit_snapshot(snapshot), "valid") != Bool(true) {
       raise InputError("retention refuses a corrupt snapshot")
     }
-    // audit_snapshot has already verified every stored object, referenced or not.
+    // audit_snapshot has already verified every stored object, referenced or not,
+    // so entries that share a digest carry the same bytes whatever their encoding.
+    // The decoded length is recorded because a base64 payload is longer than the
+    // bytes it represents and the plan must report byte counts, not text lengths.
+    let version = snapshot_version(snapshot)
     for hash, raw in obj(get(snapshot, "objects")) {
-      match objects.get(hash) {
-        Some(existing) =>
-          if existing != raw {
-            raise InputError("inconsistent shared content")
+      if !objects.contains(hash) {
+        match decode_object(version, raw) {
+          Some(bytes) => {
+            objects[hash] = raw
+            sizes[hash] = bytes.length().to_double()
           }
-        None => objects[hash] = raw
+          None => raise InputError("retention refuses an undecodable object")
+        }
       }
     }
     by_id[id] = snapshot
@@ -36,7 +43,7 @@ pub fn retention_plan(request : Value) -> Value raise {
       raise InputError("duplicate or unknown retained snapshot")
     }
     selected[id] = true
-    for file in manifest(by_id[id]) {
+    for file in manifest(by_id[id]).1 {
       reachable[str(get(file, "digest"))] = true
     }
   }
@@ -44,8 +51,8 @@ pub fn retention_plan(request : Value) -> Value raise {
   let collectible : Array[String] = []
   let mut live_bytes = 0.0
   let mut collectible_bytes = 0.0
-  for hash, bytes in objects {
-    let size = arr(bytes).length().to_double()
+  for hash, _ in objects {
+    let size = sizes[hash]
     if reachable.contains(hash) {
       kept.push(hash)
       live_bytes += size
