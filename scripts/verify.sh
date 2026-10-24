@@ -63,6 +63,8 @@ python3 -B scripts/mutation_sweep.py
 python3 -B scripts/workflow.py
 # Links, anchors and the counts stated in the documents.
 python3 -B scripts/docs.py
+# Every command the documents tell a reader to run, executed.
+node scripts/doc-commands.mjs
 # Randomized differential test. FUZZ_ITERATIONS trades time for coverage; the
 # default is small enough for CI and still exercises every seeded path.
 python3 -B scripts/fuzz.py "${FUZZ_ITERATIONS:-6}"

@@ -125,6 +125,27 @@ a different but internally consistent snapshot; and a mode change with a recompu
 checksum is reported valid, which is the documented limit of an integrity check that is
 not a signature.
 
+### Documentation commands are executed, not just written
+
+`scripts/doc-commands.mjs` parses every shell block in the documentation, classifies each
+command, and runs the ones nothing else runs. An unclassified command is a failure, because
+a new line in a README would otherwise be checked by nobody - which is exactly how the
+`--path` bug got in.
+
+Current split: 7 documented invocations executed with placeholders substituted, 41 covered
+by the verify ladder, 2 argument shapes, and 35 lines that are results rather than
+commands. The exemption list is in the script with a stated reason per entry; a line
+without one fails.
+
+The seven include `restore current.json DEST --path docs`, the form that was broken.
+Restoring the bug - reading the third argument positionally again - makes this script fail
+and nothing else does.
+
+Writing it also turned up two stale lines in `docs/audit-contract-20261024.md`, a record
+that presented `{"error":"ENOENT: ..."}` and `usage line, exit 2` as observed behaviour.
+Both had been made false by the error-contract change. The record is corrected and marked
+as revised, because evidence that quietly stops being true is worse than no record.
+
 ### A documented invocation has to work
 
 `--path` and `--format` were unreachable. The parser read the fourth argument as the

@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Every documented command is now executed
+
+- `scripts/doc-commands.mjs` parses the shell blocks in `README.md`, `docs/*.md` and
+  `examples/README.md`, classifies every command, and runs the ones nothing else runs:
+  7 executed with placeholders substituted, 41 covered by the verify ladder, 2 argument
+  shapes, 35 lines that are results rather than commands. An unclassified command fails
+  the check, so a new line in a README cannot go unrehearsed.
+- The seven include `restore current.json DEST --path docs`, the form that was broken last
+  round. Reinstating the bug makes this script fail and nothing else does.
+- Corrected two stale lines in `docs/audit-contract-20261024.md` that presented
+  `{"error":"ENOENT: ..."}` and `usage line, exit 2` as observed behaviour; both had been
+  made false by the error-contract change, and the record is now marked as revised.
+
 ### Two documented flags were unreachable
 
 - Fixed: `restore ... --path docs` and `squash ... --format 2` - both the forms the README

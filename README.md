@@ -88,6 +88,7 @@ python -B scripts/robustness.py
 python -B scripts/mutation_sweep.py
 python -B scripts/workflow.py
 python -B scripts/docs.py
+node scripts/doc-commands.mjs
 node scripts/cli-contract.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs

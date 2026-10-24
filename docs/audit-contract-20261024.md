@@ -74,14 +74,19 @@ restore(same snapshot)   -> InputError (refused)
 create with previous.objects[sha256("abc")] = [0,0,0]
   -> InputError("previous snapshot is corrupted")
 
-node main.js /missing.json      -> {"error":"ENOENT: ..."} exit 1
+node main.js /missing.json      -> {"error":"the file does not exist"} exit 1
 node main.js /invalid-utf8.bin  -> {"error":"The encoded data was not valid for encoding utf-8"} exit 1
 node main.js /17MiB.json        -> {"error":"input exceeds 16 MiB"} exit 1
-node main.js (no arguments)     -> usage line, exit 2
+node main.js (no arguments)     -> {"error":"Usage: ..."} exit 2
 
 restore of mode 0700 entry under umask 077 -> 0700 (was 0700 by luck), 0777 -> 0777 (was 0700)
 restore of manifest holding cafe<U+0301>.txt and café.txt -> refused before mkdir, destination absent
 ```
+
+The first and last of those four lines were revised later: the message became
+`the file does not exist` when raw Node text was replaced with a reason, and the usage
+error moved into the JSON envelope. The rest of this record is the state on the date it
+was written.
 
 Cross-backend output for `create`, `diff` and `retention` requests is byte
 identical between the JS and native backends.
