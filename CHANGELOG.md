@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Coverage, second pass: three guards that cannot fire
+
+- Following the coverage report turned up more unexecuted branches: the accessors that turn
+  wrongly-typed JSON into named refusals, `retention`'s refusal to plan over a corrupt
+  snapshot, `locate`'s depth limit, `extract`'s format check, the duplicate-digest path, and
+  `locate`'s handling of a link carrying payloads. Tests for those took the library from 878
+  to 893 executed lines (93.7%), 110 declarations.
+- Verified rather than argued that two base64 refusals are unreachable: an exhaustive search
+  over 472k strings up to length six left the report at 53/55. A bounded version of that
+  search (4,681 candidates, both counts pinned) is now a test, so the claim is rechecked on
+  every build.
+- Three guards are unreachable by construction and the docs now say so, alongside what
+  actually protects the caller: `locate`'s cycle check needs a hash fixed point, and a
+  manifest naming an absent parent is reported as `missing_parent` instead; `retention`'s
+  `missing parent` arm sits behind the audit, which resolves the chain first.
+
 ### Coverage measured; six untested branches found
 
 - `moon test --target js --enable-coverage` had never been run. It showed four arms of

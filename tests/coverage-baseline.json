@@ -6,15 +6,15 @@
       "total": 55
     },
     "input.mbt": {
-      "covered": 54,
+      "covered": 62,
       "total": 63
     },
     "locate.mbt": {
-      "covered": 113,
+      "covered": 118,
       "total": 125
     },
     "retention.mbt": {
-      "covered": 89,
+      "covered": 91,
       "total": 94
     },
     "snapshot.mbt": {

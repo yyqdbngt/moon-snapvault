@@ -145,7 +145,26 @@ Two files are excluded because `moon test` does not run binaries: `cmd/main/main
 test drives the first, the benchmark is run by hand - but their lines cannot be measured
 this way, and the check prints both with that reason rather than quietly omitting them.
 
-The library sits at 92%: 878 of 953 lines. Most of the remainder is defensive: the padding
+A second pass with the report in hand turned up more of the same: the accessors that turn
+wrongly-typed JSON into named refusals, `retention`'s guard against planning over a corrupt
+snapshot, `locate`'s depth limit, `extract`'s format check, and the duplicate-digest path.
+Tests for all of those took the library from 878 to 893 executed lines.
+
+Two of the guards turned out to be unreachable rather than merely untested, and saying so
+is more useful than leaving them as silent gaps:
+
+- `base64_decode`'s `written != decoded_length` check and its padding re-check cannot fail
+  given how `data` and `padding` are derived. This was argued first and then measured: an
+  exhaustive search over 472k strings up to length six left the report at 53/55. A bounded
+  version of that search is now a test, so the claim is rechecked on every build.
+- `locate`'s cycle guard needs a link whose checksum is also an ancestor's, which is a hash
+  fixed point. What happens instead - and what is asserted - is that a manifest naming an
+  absent parent is reported as `missing_parent` rather than followed.
+- `retention`'s `missing parent` arm is behind the audit, which resolves the chain first and
+  refuses on its verdict. The assertion pins that verdict, which is the protection a caller
+  actually gets.
+
+The library sits at 93.7%: 893 of 953 lines. Most of the remainder is defensive: the padding
 re-check and the `written != decoded_length` check in base64 decoding cannot fail given how
 `data` and `padding` are derived, and they stay as defensive code with the count pinned.
 
