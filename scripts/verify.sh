@@ -28,6 +28,7 @@ else
 fi
 
 moon build --target js >/dev/null
+node scripts/stats.mjs
 node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py

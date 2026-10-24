@@ -67,6 +67,7 @@ node scripts/check.mjs
 python -B scripts/reference.py
 python -B scripts/followup_reference.py
 python -B scripts/delta_reference.py
+node scripts/stats.mjs
 node scripts/integration.mjs
 moon fmt --check
 ```
