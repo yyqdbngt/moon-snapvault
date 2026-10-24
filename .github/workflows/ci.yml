@@ -114,4 +114,7 @@ jobs:
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
       - run: node scripts/consumer-smoke.mjs
+      # No Windows baseline is recorded yet, so this measures and prints rather than
+      # comparing: the numbers in this job's log are how one gets recorded.
+      - run: node scripts/perf-check.mjs
       - run: node scripts/integration.mjs
