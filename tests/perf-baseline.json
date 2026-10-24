@@ -1,10 +1,10 @@
 {
-  "note": "Fastest of three runs, milliseconds, on this host. The check fails at a factor of 2, not at a percentage, because that is the difference between a real regression and scheduler noise. Re-record with `node scripts/perf-check.mjs --write` after a deliberate change, and update the figures in README.md to match.",
+  "note": "Fastest of three runs, milliseconds, recorded on the CI runner (ubuntu-latest) where the gate actually runs. The check fails at a factor of 2, not at a percentage, because that is the difference between a real regression and scheduler noise. A workstation is expected to be slower than this; the factor is what absorbs that, which is why the baseline is the runner and not the author's machine. Re-record with `node scripts/perf-check.mjs --write` after a deliberate change, and update README.md to match.",
   "platform": "linux",
   "milliseconds": {
-    "backup 1 MiB": 366,
-    "restore 1 MiB": 331,
-    "backup 8 MiB": 1449,
-    "restore 8 MiB": 1287
+    "backup 1 MiB": 190,
+    "restore 1 MiB": 180,
+    "backup 8 MiB": 750,
+    "restore 8 MiB": 630
   }
 }

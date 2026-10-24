@@ -139,10 +139,15 @@ worse than none: the same code varies by a tenth run to run on a shared machine,
 check would fail at random and be turned off within a week. Two caught a real 2.2x and 3.5x
 regression during testing; ten percent of noise would have caught neither.
 
-Two limits are stated rather than hidden. The baseline is recorded per platform, and the
-check skips with a message when it runs elsewhere, because timings are not comparable across
-operating systems and a check that fails for a reason that is not a regression is a check
-that gets deleted. And the figures in `README.md` are copied by hand from a measurement, so
+Two limits are stated rather than hidden.
+
+The baseline is recorded on the CI runner, not on the author's machine, because the runner is
+where the gate actually runs and the two differ by nearly a factor of two: the same 1 MiB
+backup takes 190 ms there and 343 ms on the workstation used for development. A baseline
+taken from the faster machine would make the threshold twice as tight as intended on the
+slower one, and vice versa. The factor of two absorbs the difference - the workstation sits
+at 1.8x - which is workable but is the reason the threshold cannot be tightened much further
+without making the check machine-specific. And the figures in `README.md` are copied by hand from a measurement, so
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
