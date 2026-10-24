@@ -148,6 +148,12 @@ two ways depending on where it was met. The integration suite asserts that each 
 messages names its entry and that none of them is a raw errno; both assertions were
 confirmed to fail when the old wording is put back.
 
+Two of those scenarios cannot be built on Windows, and the suite says so rather than
+claiming them: `chmod 0o000` does not make a file unreadable on NTFS, which has no Unix
+permission bits, and creating a symlink needs Developer Mode - the check is skipped there
+if it cannot run. The same limitation is why `restore` reports `modes_exact: false` on
+Windows.
+
 A source tree that changes while it is being read can still produce a snapshot of a state
 that never existed as a whole. That is inherent - the walk is not a transaction - and it
 stays documented rather than half-fixed. What is now true is that it fails *legibly*.

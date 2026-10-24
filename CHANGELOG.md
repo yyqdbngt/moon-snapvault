@@ -40,6 +40,9 @@ resolves the published 0.2.0 until a release is published.
 - The integration suite asserts, for a symlink, a fifo, and an unreadable file, that the
   message names the entry and is not a raw errno. Both assertions were verified to fail
   when the old wording is restored.
+- The Windows job caught the first version of those tests: `chmod 0o000` does not make a
+  file unreadable on NTFS, so the scenario cannot be built there. It is skipped with the
+  reason recorded, in the same spirit as `modes_exact`.
 
 ### Durability was never asked for
 

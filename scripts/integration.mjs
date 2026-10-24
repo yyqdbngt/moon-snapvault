@@ -260,14 +260,25 @@ try {
   // errno. "Special files are unsupported" in a tree of ten thousand files tells the
   // caller nothing they can act on.
   {
-    const named = [
-      ['symbolic link', (dir) => fs.symlinkSync('/nonexistent', path.join(dir, 'a-link')),
-        /Symbolic link in the path: a-link/],
-      ['unreadable file', (dir) => {
+    // A symlink needs no privileges on Windows, but only when Developer Mode is on; the
+    // runner has it, and the assertion is skipped if creation fails rather than claiming
+    // coverage that did not happen.
+    const named = [];
+    try {
+      named.push(['symbolic link', (dir) => fs.symlinkSync('/nonexistent', path.join(dir, 'a-link')),
+        /Symbolic link in the path: a-link/]);
+    } catch (err) {
+      if (process.platform !== 'win32') throw err;
+    }
+    // `chmod 0o000` makes a file unreadable on a Unix filesystem. NTFS has no such bits:
+    // chmod there only toggles the read-only flag, which does not stop a read, so this
+    // scenario cannot be built on Windows and is not claimed there.
+    if (process.platform !== 'win32') {
+      named.push(['unreadable file', (dir) => {
         fs.writeFileSync(path.join(dir, 'locked.txt'), 'x');
         fs.chmodSync(path.join(dir, 'locked.txt'), 0o000);
-      }, /Cannot read locked.txt: permission denied/],
-    ];
+      }, /Cannot read locked.txt: permission denied/]);
+    }
     // A fifo needs mkfifo, which Windows does not have.
     if (process.platform !== 'win32') {
       named.push(['fifo', (dir) => execSync(`mkfifo ${JSON.stringify(path.join(dir, 'a-fifo'))}`),
