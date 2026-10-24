@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {execSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -252,6 +253,42 @@ try {
         'an unwritable parent must be named, not reported as EACCES');
       assert.match(lockedMessage ?? '', /restore requires a new directory/);
       assert.equal(fs.existsSync(path.join(locked, 'out')), false);
+    }
+  }
+
+  // Every refusal while walking a source tree must name the entry and avoid a raw
+  // errno. "Special files are unsupported" in a tree of ten thousand files tells the
+  // caller nothing they can act on.
+  {
+    const named = [
+      ['symbolic link', (dir) => fs.symlinkSync('/nonexistent', path.join(dir, 'a-link')),
+        /Symbolic link in the path: a-link/],
+      ['unreadable file', (dir) => {
+        fs.writeFileSync(path.join(dir, 'locked.txt'), 'x');
+        fs.chmodSync(path.join(dir, 'locked.txt'), 0o000);
+      }, /Cannot read locked.txt: permission denied/],
+    ];
+    // A fifo needs mkfifo, which Windows does not have.
+    if (process.platform !== 'win32') {
+      named.push(['fifo', (dir) => execSync(`mkfifo ${JSON.stringify(path.join(dir, 'a-fifo'))}`),
+        /Special file in source .*: a-fifo/]);
+    }
+    for (const [label, prepare, expected] of named) {
+      const dir = path.join(base, 'named-' + label.replace(/\W/g, ''));
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, 'ordinary.txt'), 'x');
+      prepare(dir);
+      const message = (() => {
+        try { backup(dir, path.join(base, label.replace(/\W/g, '') + '.json')); return null; }
+        catch (err) { return err.message; }
+      })();
+      assert.ok(message, `${label}: backup should have refused`);
+      assert.match(message, expected, `${label}: message must name the entry, got ${message}`);
+      assert.doesNotMatch(message, /^[A-Z]+: /, `${label}: raw errno leaked: ${message}`);
+      // Restore write permission so the temporary tree can be removed; only the
+      // unreadable-file case created this file.
+      const locked = path.join(dir, 'locked.txt');
+      if (fs.existsSync(locked)) fs.chmodSync(locked, 0o600);
     }
   }
 
@@ -512,7 +549,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore, named host failures passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore, named host and source failures passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

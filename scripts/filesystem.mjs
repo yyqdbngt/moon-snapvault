@@ -58,6 +58,23 @@ function readChain(files) {
 }
 
 // The parts of a snapshot a reader needs in order to resolve digests: no payloads.
+// One wording per errno, so the same problem reads the same way wherever it is met.
+function reason(err) {
+  switch (err.code) {
+    case 'ENOENT': return 'it no longer exists';
+    case 'EACCES': return 'permission denied';
+    case 'EPERM': return 'operation not permitted';
+    case 'EISDIR': return 'it is a directory';
+    case 'ENOTDIR': return 'a path component is not a directory';
+    case 'ELOOP': return 'too many symbolic links';
+    case 'ENAMETOOLONG': return 'the name is too long';
+    case 'EMFILE': case 'ENFILE': return 'too many open files';
+    case 'ENOSPC': return 'no space left on device';
+    case 'EIO': return 'an I/O error occurred';
+    default: return err.message;
+  }
+}
+
 // Durability helpers.
 //
 // `writeFileSync` returns once the data is in the page cache, which is not the same as
@@ -213,19 +230,45 @@ export function backup(source, destination, previous, chain = []) {
   const files = [];
   let total = 0;
   function walk(directory, relative) {
-    for (const item of fs.readdirSync(directory, {withFileTypes: true}).sort((a,b) => a.name.localeCompare(b.name))) {
+    let entries;
+    try {
+      entries = fs.readdirSync(directory, {withFileTypes: true});
+    } catch (err) {
+      throw new Error(`Cannot list ${relative || '.'}: ${reason(err)}`);
+    }
+    for (const item of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const name = relative ? relative + '/' + item.name : item.name;
       const absolute = safeFile(base, name);
-      const stat = fs.lstatSync(absolute);
-      if (stat.isSymbolicLink()) throw new Error('Symlinks are unsupported');
+      // Every refusal below names the entry. "Special files are unsupported" is
+      // unactionable in a tree of ten thousand files, and the caller cannot fix what it
+      // cannot find. `name` is the relative path, which is what appears in the snapshot
+      // and what the user typed when creating the tree.
+      let stat;
+      try {
+        stat = fs.lstatSync(absolute);
+      } catch (err) {
+        throw new Error(`Cannot inspect ${name}: ${reason(err)}`);
+      }
+      if (stat.isSymbolicLink()) throw new Error(`Symbolic link in source: ${name}`);
       if (stat.isDirectory()) walk(absolute, name);
       else if (stat.isFile()) {
         total += stat.size;
-        if (total > ADAPTER_LIMIT) throw new Error(`JSON snapshot adapter limit is ${ADAPTER_LIMIT / 1048576} MiB of source bytes per backup`);
+        if (total > ADAPTER_LIMIT) {
+          throw new Error(`Source exceeds the ${ADAPTER_LIMIT / 1048576} MiB per-backup limit `
+            + `at ${name} (${(total / 1048576).toFixed(2)} MiB so far)`);
+        }
         // Base64 keeps the request near 4/3 of the source size instead of the
         // up to 4x of a decimal byte array, and skips a 1M-element JSON array.
-        files.push({path: name, content_base64: fs.readFileSync(absolute).toString('base64'), mode: stat.mode & 0o777});
-      } else throw new Error('Special files are unsupported');
+        let content;
+        try {
+          content = fs.readFileSync(absolute);
+        } catch (err) {
+          throw new Error(`Cannot read ${name}: ${reason(err)}`);
+        }
+        files.push({path: name, content_base64: content.toString('base64'), mode: stat.mode & 0o777});
+      } else {
+        throw new Error(`Special file in source (not a regular file or directory): ${name}`);
+      }
     }
   }
   walk(base, '');

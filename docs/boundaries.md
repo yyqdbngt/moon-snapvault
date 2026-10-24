@@ -125,6 +125,33 @@ a different but internally consistent snapshot; and a mode change with a recompu
 checksum is reported valid, which is the documented limit of an integrity check that is
 not a signature.
 
+### Refusals name the entry
+
+Walking a source tree can refuse five things: a symbolic link, a special file, an entry
+that vanished, an entry that cannot be read, and the adapter's size limit. Each of those
+used to be either a sentence with no file in it - `Special files are unsupported` - or a
+raw `EACCES` from Node. In a tree of ten thousand files, both are unactionable: the caller
+knows something is wrong and not what to fix.
+
+They now name the relative path, which is the same string that appears in the snapshot:
+
+| Situation | Message |
+|---|---|
+| symlink | `Symbolic link in the path: a-link` |
+| fifo or socket | `Special file in source (not a regular file or directory): a-fifo` |
+| unreadable | `Cannot read locked.txt: permission denied` |
+| vanished | `Cannot inspect gone.txt: it no longer exists` |
+| over the limit | `Source exceeds the 8 MiB per-backup limit at big.bin (8.01 MiB so far)` |
+
+One `reason()` function turns errno codes into words, so the same problem does not read
+two ways depending on where it was met. The integration suite asserts that each of these
+messages names its entry and that none of them is a raw errno; both assertions were
+confirmed to fail when the old wording is put back.
+
+A source tree that changes while it is being read can still produce a snapshot of a state
+that never existed as a whole. That is inherent - the walk is not a transaction - and it
+stays documented rather than half-fixed. What is now true is that it fails *legibly*.
+
 ### Durability: what `verified` actually meant
 
 Until this was measured, neither backup nor restore called `fsync` at all. `writeFileSync`

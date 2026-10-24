@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### A refusal has to say what it refused
+
+- Fixed: five source-side refusals either named no file (`Special files are unsupported`,
+  `Symbolic links are unsupported`) or leaked a raw Node error (`EACCES: permission
+  denied, open '/private/.../locked.txt'`). In a tree of ten thousand files neither tells
+  the caller what to fix.
+- They now name the relative path - the same string that appears in the snapshot - and a
+  single `reason()` turns errno codes into words so the same problem reads the same way
+  wherever it is met. The size-limit message also reports how far it had got.
+- The integration suite asserts, for a symlink, a fifo, and an unreadable file, that the
+  message names the entry and is not a raw errno. Both assertions were verified to fail
+  when the old wording is restored.
+
 ### Durability was never asked for
 
 - Measured: neither backup nor restore called `fsync`. `writeFileSync` returns once the

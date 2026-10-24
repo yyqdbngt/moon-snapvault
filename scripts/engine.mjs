@@ -99,8 +99,17 @@ export function safeFile(base, name) {
   let current = base;
   for (const part of name.split('/')) {
     current = path.join(current, part);
-    try { if (fs.lstatSync(current).isSymbolicLink()) throw new Error('Symbolic links are unsupported'); }
-    catch (err) { if (err.code !== 'ENOENT') throw err; }
+    // A link anywhere along the path is refused, and the message names the link rather
+    // than the whole path: the point is to tell the user which entry to remove.
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        throw new Error('Symbolic link in the path: ' + path.relative(base, current));
+      }
+    } catch (err) {
+      // ENOENT is expected for a part that does not exist yet; the walk reports those
+      // itself, with the entry named.
+      if (err.code !== 'ENOENT') throw err;
+    }
   }
   return absolute;
 }
