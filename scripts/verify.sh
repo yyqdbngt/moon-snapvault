@@ -36,6 +36,7 @@ fi
 # are built: the host checks then measure the same code the benchmarks quote.
 moon build --target js >/dev/null
 moon build --target js --release >/dev/null
+node scripts/coverage.mjs
 node scripts/stats.mjs
 node scripts/interface.mjs
 # A separate module compiled against the exported interface, which is the only way

@@ -125,6 +125,30 @@ a different but internally consistent snapshot; and a mode change with a recompu
 checksum is reported valid, which is the documented limit of an integrity check that is
 not a signature.
 
+### Coverage is measured, and may only widen
+
+`moon test --target js --enable-coverage` reports which lines the white-box tests execute.
+The first run was informative: four arms of `run`'s dispatch table - `assemble`, `locate`,
+`extract`, `squash` - had never been executed by any test, because the only thing reaching
+them was the Node CLI, which `moon test` does not run. Neither had the base64 guard against
+a code unit above 255, or the JSON-to-`Value` conversion for `null` and numbers. Nothing
+was wrong; nothing would have noticed if it had been.
+
+Those are now tested, written from the report rather than from the code, and the numbers
+went from 888 to 931 executed lines. `scripts/coverage.mjs` records the result in
+`tests/coverage-baseline.json` and fails if any file's uncovered lines grow, which catches
+both a deleted test and new code without one. It deliberately does not chase a percentage:
+a target would reward deleting code.
+
+Two files are excluded because `moon test` does not run binaries: `cmd/main/main.mbt` and
+`cmd/bench/main.mbt` sit at 0/38 and 0/34. Their behaviour is covered - the CLI contract
+test drives the first, the benchmark is run by hand - but their lines cannot be measured
+this way, and the check prints both with that reason rather than quietly omitting them.
+
+The library sits at 92%: 878 of 953 lines. Most of the remainder is defensive: the padding
+re-check and the `written != decoded_length` check in base64 decoding cannot fail given how
+`data` and `padding` are derived, and they stay as defensive code with the count pinned.
+
 ### Documentation commands are executed, not just written
 
 `scripts/doc-commands.mjs` parses every shell block in the documentation, classifies each

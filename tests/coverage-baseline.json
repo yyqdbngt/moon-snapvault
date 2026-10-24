@@ -1,0 +1,29 @@
+{
+  "note": "Covered/total lines per file, from `moon test --target js --enable-coverage`. Uncovered lines may not grow; regenerate with `node scripts/coverage.mjs --write`.",
+  "files": {
+    "base64.mbt": {
+      "covered": 53,
+      "total": 55
+    },
+    "input.mbt": {
+      "covered": 54,
+      "total": 63
+    },
+    "locate.mbt": {
+      "covered": 113,
+      "total": 125
+    },
+    "retention.mbt": {
+      "covered": 89,
+      "total": 94
+    },
+    "snapshot.mbt": {
+      "covered": 538,
+      "total": 582
+    },
+    "value.mbt": {
+      "covered": 31,
+      "total": 34
+    }
+  }
+}

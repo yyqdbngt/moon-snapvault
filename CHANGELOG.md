@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Coverage measured; six untested branches found
+
+- `moon test --target js --enable-coverage` had never been run. It showed four arms of
+  `run`'s dispatch table (`assemble`, `locate`, `extract`, `squash`) that no test executed -
+  only the Node CLI reached them, and `moon test` does not run it - plus the base64 guard
+  against a code unit above 255, and the JSON-to-`Value` conversion for `null` and numbers.
+- Tests added for all of them, written from the coverage report rather than the code:
+  102 declarations, 888 -> 931 executed lines.
+- `scripts/coverage.mjs` gates on the recorded baseline: uncovered lines may not grow per
+  file, which catches a deleted test and new code without one. It does not target a
+  percentage, since that would reward deleting code.
+- Excluded and printed rather than hidden: `cmd/main` and `cmd/bench` are binaries that
+  `moon test` never runs, so their lines stay at 0/38 and 0/34 by construction.
+- Two base64 refusals are unreachable by construction and stay as defensive code with the
+  count pinned.
+
 ### Every documented command is now executed
 
 - `scripts/doc-commands.mjs` parses the shell blocks in `README.md`, `docs/*.md` and
