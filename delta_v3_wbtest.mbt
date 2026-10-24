@@ -37,7 +37,7 @@ fn digest_of(text : String) -> String {
 
 ///|
 /// "Restore everything", the selection a request without `paths` produces.
-let all_files : Selection = { prefixes: None, }
+let all_files : Selection = all_selection
 
 ///|
 test "a delta stores only the objects its parent lacks" {

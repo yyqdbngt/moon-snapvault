@@ -13,9 +13,26 @@ list, match it by checksum, verify every link, and walk at most 64 links. A
 missing link is reported as `missing parent snapshot`; a cycle is refused.
 
 Randomized differential testing (`scripts/fuzz.py`) covers the operations and the
-mutations listed in [incremental snapshots](incremental.md), but it is not a
-proof and not a substitute for fuzzing the JSON parser itself; malformed JSON past
-the parser's own errors is out of scope.
+mutations listed in [incremental snapshots](incremental.md), but it never sends
+malformed input, so it is not a proof of robustness.
+
+That gap is covered separately by `scripts/robustness.py`, which mutates the
+structure of snapshots and requests - wrong types, missing fields, absurd numbers,
+2000-deep nesting, control characters, duplicate keys, hostile paths, unknown
+operations - and asserts the one property a command-line tool must hold: every
+input produces exactly one JSON object on stdout and exit 0, 1 or 2. A crash, an
+abort, a hang, a stack trace or partial output fails the run. 305 cases pass.
+
+What that does not establish is that a structurally invalid snapshot is always
+*refused* rather than merely answered; several such inputs are answered with a
+`valid: false` report, which is the intended behaviour for `audit` and means a
+caller must read the report rather than rely on the exit code alone.
+
+Selection matching is linear in files and paths. It used to compare every requested
+path against every file, which a request well inside the size cap could push into
+minutes: 8000 paths against 8000 files took 5.9 s and grew quadratically. Each file
+is now matched by looking up its component prefixes, so the same case takes 0.69 s
+and grows with the tree rather than with the product.
 
 A chain larger than one request is read through `locate` and `extract`, one link at
 a time. That keeps restores possible, but the payloads are still held in memory

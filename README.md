@@ -68,12 +68,13 @@ python -B scripts/reference.py
 python -B scripts/followup_reference.py
 python -B scripts/delta_reference.py
 python -B scripts/fuzz.py 8
+python -B scripts/robustness.py
 node scripts/stats.mjs
 node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 80 MoonBit test declarations and 64 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 86 MoonBit test declarations and 64 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. `scripts/robustness.py` goes the other way and feeds structurally malformed snapshots and requests, asserting that each still yields exactly one JSON object and a clean exit rather than a crash or a hang. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 

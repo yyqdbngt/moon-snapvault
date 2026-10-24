@@ -104,16 +104,16 @@ test "locate needs no payloads at all" {
 test "locate honours a selection and refuses an unknown path" {
   let chain = locate_chain()
   let parents = [manifest_only(chain[0]), manifest_only(chain[1])]
-  let located = locate_with(manifest_only(chain[2]), parents, {
-    prefixes: Some(["docs"]),
-  })
+  let located = locate_with(
+    manifest_only(chain[2]),
+    parents,
+    selection_of(["docs"]),
+  )
   assert_eq(arr(get(located, "files")).length(), 1)
   assert_eq(str(get(arr(get(located, "files"))[0], "path")), "docs/b.md")
   let unknown = try {
     ignore(
-      locate_with(manifest_only(chain[2]), parents, {
-        prefixes: Some(["nope"]),
-      }),
+      locate_with(manifest_only(chain[2]), parents, selection_of(["nope"])),
     )
     false
   } catch {

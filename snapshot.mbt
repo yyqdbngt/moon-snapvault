@@ -740,14 +740,36 @@ fn request_parents(request : Value) -> Array[Value] {
 ///|
 /// A restore selection: `None` means every file. A path selects the file with
 /// that exact name and everything below it, so `docs` takes `docs/a.md` too.
+///
+/// `set` holds the same paths for lookup. Matching against the list would be
+/// O(paths × files), which a request well inside the size cap can push into
+/// minutes: 8000 paths against 8000 files already took six seconds.
 priv struct Selection {
   prefixes : Array[String]?
+  set : Map[String, Bool]
+}
+
+///|
+/// Every file.
+let all_selection : Selection = { prefixes: None, set: Map([]), }
+
+///|
+/// A selection over the given paths, already normalised by `request_selection`.
+fn selection_of(paths : Array[String]) -> Selection raise {
+  let set : Map[String, Bool] = Map([])
+  for path in paths {
+    if !safe_path(path) {
+      raise InputError("unsafe restore path: " + path)
+    }
+    set[path] = true
+  }
+  { prefixes: Some(paths), set, }
 }
 
 ///|
 fn request_selection(request : Value) -> Selection raise {
   match get(request, "paths") {
-    Null => { prefixes: None, }
+    Null => all_selection
     Array(items) => {
       let prefixes : Array[String] = []
       for item in items {
@@ -768,24 +790,61 @@ fn request_selection(request : Value) -> Selection raise {
       if prefixes.is_empty() {
         raise InputError("paths must name at least one path")
       }
-      { prefixes: Some(prefixes), }
+      selection_of(prefixes)
     }
     _ => raise InputError("paths must be an array of strings")
   }
 }
 
 ///|
-fn selects(selection : Selection, path : String) -> Bool {
-  match selection.prefixes {
-    None => true
-    Some(prefixes) => {
-      let mut matched = false
-      for prefix in prefixes {
-        if path == prefix || path.has_prefix(prefix + "/") {
-          matched = true
-        }
+/// The path itself and each directory above it, longest first: `a/b/c` gives
+/// `a/b/c`, `a/b`, `a`. A selection matches when any of these is selected, which
+/// is the same rule as "the file is that path or sits below it".
+fn component_prefixes(path : String) -> Array[String] {
+  let out : Array[String] = [path]
+  let mut current = path
+  while true {
+    match current.rev_split_once("/") {
+      None => break
+      Some((before, _)) => {
+        current = before.to_owned()
+        out.push(current)
       }
-      matched
+    }
+  }
+  out
+}
+
+///|
+fn selects(selection : Selection, path : String) -> Bool {
+  if selection.prefixes is None {
+    return true
+  }
+  for candidate in component_prefixes(path) {
+    if selection.set.contains(candidate) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+/// For each selected file, records which of the asked-for paths it satisfies.
+/// One pass over the files, so the cost is files × depth rather than files ×
+/// paths.
+fn mark_matches(
+  selection : Selection,
+  listed : Array[Value],
+  matched : Map[String, Bool],
+) -> Unit raise {
+  if selection.prefixes is None {
+    return
+  }
+  for file in listed {
+    for candidate in component_prefixes(str(get(file, "path"))) {
+      if selection.set.contains(candidate) {
+        matched[candidate] = true
+      }
     }
   }
 }
@@ -795,18 +854,14 @@ fn unresolved_selection(
   selection : Selection,
   listed : Array[Value],
 ) -> Array[String] raise {
+  let matched : Map[String, Bool] = Map([])
+  mark_matches(selection, listed, matched)
   let missing : Array[String] = []
   match selection.prefixes {
     None => ()
     Some(prefixes) =>
       for prefix in prefixes {
-        let mut hit = false
-        for file in listed {
-          if selects({ prefixes: Some([prefix]), }, str(get(file, "path"))) {
-            hit = true
-          }
-        }
-        if !hit {
+        if !matched.contains(prefix) {
           missing.push(prefix)
         }
       }

@@ -151,7 +151,7 @@ test "restore selects a directory prefix" {
   let chain = chain_of_three()
   let tip = chain[2]
   let parents = [chain[0], chain[1]]
-  let selection : Selection = { prefixes: Some(["docs"]), }
+  let selection : Selection = selection_of(["docs"])
   let restored = restore_with(tip, parents, selection)
   assert_eq(get(restored, "selected"), Number(2.0))
   assert_eq(get(restored, "total_files"), Number(4.0))
@@ -166,11 +166,11 @@ test "restore selects an exact file and honours the component boundary" {
   let chain = chain_of_three()
   let tip = chain[2]
   let parents = [chain[0], chain[1]]
-  let exact = restore_with(tip, parents, { prefixes: Some(["notes.txt"]), })
+  let exact = restore_with(tip, parents, selection_of(["notes.txt"]))
   assert_eq(paths_of(arr(get(exact, "files"))), ["notes.txt"])
   // "doc" is not a prefix of "docs/a.md": selections match whole components.
   let partial = try {
-    ignore(restore_with(tip, parents, { prefixes: Some(["doc"]), }))
+    ignore(restore_with(tip, parents, selection_of(["doc"])))
     false
   } catch {
     _ => true
@@ -183,9 +183,11 @@ test "restore merges several selections without duplicates" {
   let chain = chain_of_three()
   let tip = chain[2]
   let parents = [chain[0], chain[1]]
-  let restored = restore_with(tip, parents, {
-    prefixes: Some(["top.txt", "docs", "docs/a.md"]),
-  })
+  let restored = restore_with(
+    tip,
+    parents,
+    selection_of(["top.txt", "docs", "docs/a.md"]),
+  )
   assert_eq(paths_of(arr(get(restored, "files"))), [
     "docs/a.md", "docs/b.md", "top.txt",
   ])
@@ -198,7 +200,7 @@ test "restore refuses an unknown or unsafe selection" {
   let tip = chain[2]
   let parents = [chain[0], chain[1]]
   let unknown = try {
-    ignore(restore_with(tip, parents, { prefixes: Some(["missing.txt"]), }))
+    ignore(restore_with(tip, parents, selection_of(["missing.txt"])))
     false
   } catch {
     _ => true
@@ -243,7 +245,7 @@ test "a trailing separator selects the same subtree" {
   let chain = chain_of_three()
   let tip = chain[2]
   let parents = [chain[0], chain[1]]
-  let plain = restore_with(tip, parents, { prefixes: Some(["docs"]), })
+  let plain = restore_with(tip, parents, selection_of(["docs"]))
   // The separator is stripped while the request is parsed, so this goes through
   // `run` the way a real request does.
   let slashed = run(
@@ -301,13 +303,13 @@ test "squash then restore needs no chain" {
     squash_with(chain[2], [chain[0], chain[1]], Some(3)),
     "snapshot",
   )
-  let restored = restore_with(squashed, [], { prefixes: None, })
+  let restored = restore_with(squashed, [], all_selection)
   assert_eq(get(restored, "chain_depth"), Number(1.0))
   assert_eq(paths_of(arr(get(restored, "files"))), [
     "docs/a.md", "docs/b.md", "notes.txt", "top.txt",
   ])
   // Selecting from a squashed snapshot behaves the same as from the chain.
-  let selected = restore_with(squashed, [], { prefixes: Some(["notes.txt"]), })
+  let selected = restore_with(squashed, [], selection_of(["notes.txt"]))
   assert_eq(paths_of(arr(get(selected, "files"))), ["notes.txt"])
 }
 

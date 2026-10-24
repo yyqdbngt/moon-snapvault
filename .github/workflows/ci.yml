@@ -42,3 +42,4 @@ jobs:
       - run: python -B scripts/delta_reference.py
       - run: node scripts/stats.mjs
       - run: python -B scripts/fuzz.py 8
+      - run: python -B scripts/robustness.py

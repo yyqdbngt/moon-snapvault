@@ -41,6 +41,9 @@ node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py
 python3 -B scripts/delta_reference.py
+# Structural robustness: malformed snapshots and requests must still produce one
+# JSON object and a clean exit, never a crash or a hang.
+python3 -B scripts/robustness.py
 # Randomized differential test. FUZZ_ITERATIONS trades time for coverage; the
 # default is small enough for CI and still exercises every seeded path.
 python3 -B scripts/fuzz.py "${FUZZ_ITERATIONS:-6}"

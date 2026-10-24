@@ -28,6 +28,21 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Input robustness and selection cost
+
+- `scripts/robustness.py`: structural fuzzing of the input boundary. 305 malformed
+  snapshots and requests - wrong types, missing fields, absurd numbers, deep
+  nesting, control characters, duplicate keys, hostile paths, unknown operations -
+  must each produce exactly one JSON object and exit 0, 1 or 2. Wired into
+  `verify.sh` and CI. No violations were found; the value is that the property is
+  now checked rather than assumed.
+- Fixed: selection matching was O(paths x files). 8000 paths against 8000 files took
+  5.9 s and quadrupled when either side doubled, so a request well inside the 16 MiB
+  cap could hang for minutes. Files are now matched through their component
+  prefixes, which takes the same case to 0.69 s and grows with the tree. A test
+  compares the new rule against the old definition on 121 prefix pairs and 13 paths,
+  so the change is provably a speedup and not a semantic change.
+
 ### Long chains
 
 - Fixed: adding a third large link to a chain failed with `input exceeds 16 MiB`.
