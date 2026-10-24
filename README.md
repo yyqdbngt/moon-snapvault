@@ -87,6 +87,7 @@ python -B scripts/fuzz.py 8
 python -B scripts/robustness.py
 python -B scripts/mutation_sweep.py
 python -B scripts/workflow.py
+node scripts/bench-smoke.mjs
 python -B scripts/docs.py
 node scripts/doc-commands.mjs
 node scripts/coverage.mjs

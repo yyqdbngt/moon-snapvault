@@ -181,9 +181,25 @@ both a deleted test and new code without one. It deliberately does not chase a p
 a target would reward deleting code.
 
 Two files are excluded because `moon test` does not run binaries: `cmd/main/main.mbt` and
-`cmd/bench/main.mbt` sit at 0/38 and 0/34. Their behaviour is covered - the CLI contract
-test drives the first, the benchmark is run by hand - but their lines cannot be measured
+`cmd/bench/main.mbt` sit at 0/38 and 0/34. Their behaviour is covered - `cli-contract.mjs`
+runs the CLI six times and the benchmark is run by hand - but their lines cannot be measured
 this way, and the check prints both with that reason rather than quietly omitting them.
+
+`cmd/bench` was a different case: nothing ran it at all. The numbers in the docs came from
+`scripts/bench.mjs`, which measures the adapter, not from this binary - so a bug in the
+benchmark's own reporting would have gone unnoticed until someone quoted it.
+`scripts/bench-smoke.mjs` now runs it and checks that every line is shaped like a
+measurement: a label, a positive duration and a finite throughput. It does not assert timings,
+which vary by host and are `perf-check.mjs`'s job. Breaking the format - dropping one comma -
+makes it fail.
+
+That is a limit of the tooling rather than of the tests, and it was checked rather than
+assumed. `moon coverage analyze` reports the same 72 uncovered lines as `test` followed by
+`report`, so the two paths measure the same thing; `moon build --enable-coverage` produces no
+trace at all, so an instrumented binary run by the contract test would emit nothing. A test
+inside the package cannot help either: the two functions worth testing there are `extern "js"`
+shims onto the Node process, and calling them from a test would read the test runner's argv
+and set its exit code. The lines are unreachable for measurement, not untested.
 
 A second pass with the report in hand turned up more of the same: the accessors that turn
 wrongly-typed JSON into named refusals, `retention`'s guard against planning over a corrupt

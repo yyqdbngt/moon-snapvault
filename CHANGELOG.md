@@ -94,8 +94,18 @@ resolves the published 0.2.0 until a release is published.
 - `scripts/coverage.mjs` gates on the recorded baseline: uncovered lines may not grow per
   file, which catches a deleted test and new code without one. It does not target a
   percentage, since that would reward deleting code.
+- `cmd/bench` turned out to be a different case: nothing ran it at all. The numbers in the
+  docs come from `scripts/bench.mjs`, which measures the adapter. `scripts/bench-smoke.mjs`
+  now runs the binary and checks that each line is a label, a positive duration and a finite
+  throughput - not that the timings are any particular value, which is `perf-check.mjs`'s job
+  and varies by host. Breaking the output format makes it fail.
 - Excluded and printed rather than hidden: `cmd/main` and `cmd/bench` are binaries that
-  `moon test` never runs, so their lines stay at 0/38 and 0/34 by construction.
+  `moon test` never runs, so their lines stay at 0/38 and 0/34 by construction. Verified that
+  this is a tooling limit and not a gap in the tests: `moon coverage analyze` reports the same
+  72 lines as `test` plus `report`, `moon build --enable-coverage` emits no trace, and the two
+  functions worth testing inside the CLI package are `extern "js"` shims that would read the
+  test runner's argv. `cli-contract.mjs` runs the CLI six times from outside, which is where
+  that behaviour belongs.
 - Two base64 refusals are unreachable by construction and stay as defensive code with the
   count pinned.
 
