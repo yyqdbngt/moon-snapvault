@@ -164,7 +164,20 @@ is more useful than leaving them as silent gaps:
   refuses on its verdict. The assertion pins that verdict, which is the protection a caller
   actually gets.
 
-The library sits at 93.7%: 893 of 953 lines. Most of the remainder is defensive: the padding
+A third pass reached 894 of 953. The remaining 59 lines are worth naming rather than
+chasing, because they are almost all one of three things:
+
+- statement lines that carry no branch, which the coverage tool counts as uncovered because
+  the expression on them never completed - a `let size = num(...)` whose failure path raises
+  earlier will show as unexecuted even when the code after it runs;
+- arms behind a check that runs first: the `format < 3` reuse path needs a previous snapshot
+  in an old format, and that combination is refused at `a parent chain requires format 3`
+  before the walk begins;
+- the two base64 refusals already measured as unreachable.
+
+The library sits at 93.8%: 894 of 953 lines. Further gains would mean either contriving
+inputs the format forbids or deleting defensive code, and neither would make the program
+more correct. Most of the remainder is defensive: the padding
 re-check and the `written != decoded_length` check in base64 decoding cannot fail given how
 `data` and `padding` are derived, and they stay as defensive code with the count pinned.
 

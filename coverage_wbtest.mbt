@@ -511,3 +511,159 @@ test "retention refuses a duplicated or empty identity" {
     assert_true(message != "no refusal")
   }
 }
+
+///|
+/// Defaulted fields, absent request members, and one more branch that cannot be reached.
+///
+/// `mode` defaults to 0644, and `digests` and `known_objects` default to empty. Every
+/// fixture passes all three explicitly, so the defaults themselves were never executed.
+///
+/// The `if format < 3` arm inside the reuse path is a fourth guard that cannot fire: it
+/// would need a `previous` snapshot with a format below 3, and that combination is refused
+/// before the walk begins, at `a parent chain requires format 3`. Format 2 can still reuse
+/// an object within a single request - two paths with the same content - which is what the
+/// first test below walks instead.
+test "format 2 reuses an object within one request" {
+  let created = create_snapshot(
+    [
+      record([("path", String("a.txt")), ("text", String("abc"))]),
+      record([("path", String("b.txt")), ("text", String("abc"))]),
+    ],
+    format=2,
+  )
+  let stats = get(created, "statistics")
+  assert_eq(get(stats, "objects_stored"), Number(1.0))
+  assert_eq(get(stats, "deduplicated_bytes"), Number(3.0))
+  // One object, encoded the format 2 way.
+  let objects = obj(get(get(created, "snapshot"), "objects"))
+  assert_eq(objects.length(), 1)
+  assert_eq(objects[digest(@utf8.encode("abc"))], String("YWJj"))
+}
+
+///|
+test "a previous snapshot in a format below 3 is refused before the walk" {
+  // This is why the reuse arm cannot be reached for format 1 or 2: the combination is
+  // rejected up front, so the guard behind it is defensive.
+  let first = create_snapshot(
+    [record([("path", String("a.txt")), ("text", String("abc"))])],
+    format=2,
+  )
+  let message = try {
+    ignore(
+      create_snapshot(
+        [record([("path", String("a.txt")), ("text", String("abc"))])],
+        previous=get(first, "snapshot"),
+        format=2,
+      ),
+    )
+    "no refusal"
+  } catch {
+    InputError(text) => text
+    _ => "other error"
+  }
+  assert_eq(message, "a parent chain requires format 3")
+}
+
+///|
+test "a file entry without a mode defaults to 420" {
+  let created = create_snapshot(
+    [record([("path", String("a.txt")), ("text", String("abc"))])],
+    format=2,
+  )
+  let file = arr(get(get(created, "snapshot"), "files"))[0]
+  assert_eq(get(file, "mode"), Number(420.0))
+}
+
+///|
+test "an absent digests member means none, and an absent objects member is a manifest" {
+  let empty : Array[Value] = []
+  // No `digests`: a valid request that returns nothing.
+  let extracted = extract_with(
+    record([
+      ("version", Number(3.0)),
+      ("parent", Null),
+      ("files", Array(empty)),
+      ("objects", Object(Map([]))),
+      ("checksum", String(checksum(3, None, empty))),
+    ]),
+    [],
+    None,
+  )
+  assert_eq(obj(get(extracted, "objects")).length(), 0)
+
+  // A manifest-only snapshot has no `objects` member. A full snapshot with an empty object
+  // map is valid to audit; the manifest-only form is what a parent reference looks like.
+  let manifest_only = record([
+    ("version", Number(3.0)),
+    ("parent", Null),
+    ("files", Array(empty)),
+    ("checksum", String(checksum(3, None, empty))),
+  ])
+  let located = locate_with(manifest_only, [], all_selection)
+  assert_eq(arr(get(located, "files")).length(), 0)
+  assert_eq(get(located, "missing_parent"), Null)
+}
+
+///|
+test "a parent declared in a format below 3 is refused" {
+  let files : Array[Value] = []
+  let with_parent = record([
+    ("version", Number(2.0)),
+    ("parent", String("0".repeat(64))),
+    ("files", Array(files)),
+    ("objects", Object(Map([]))),
+    ("checksum", String(checksum(2, None, files))),
+  ])
+  let message = try {
+    ignore(audit_with(with_parent, []))
+    "no refusal"
+  } catch {
+    InputError(text) => text
+    _ => "other error"
+  }
+  assert_eq(message, "only format 3 snapshots may declare a parent")
+}
+
+///|
+/// A manifest-only parent: no `objects` member at all.
+///
+/// `stored_objects` returns None for such a snapshot, which is what makes it usable as a
+/// parent reference - its checksum covers only the manifest, so it verifies without any
+/// payloads being present. The arm was unexecuted because every test built full snapshots.
+test "a manifest-only parent audits and locates without payloads" {
+  let files = one_entry()
+  let base_files : Array[Value] = []
+  let base_checksum = checksum(3, None, base_files)
+  let delta_checksum = checksum(3, Some(base_checksum), files)
+  // The parent carries a manifest and nothing else.
+  let manifest_parent = record([
+    ("version", Number(3.0)),
+    ("parent", Null),
+    ("files", Array(base_files)),
+    ("checksum", String(base_checksum)),
+  ])
+  let tip = record([
+    ("version", Number(3.0)),
+    ("parent", String(base_checksum)),
+    ("files", Array(files)),
+    ("checksum", String(delta_checksum)),
+    ("stored_digests", Array([String(digest(@utf8.encode("a")))])),
+  ])
+  // `locate` reads only manifests, so it works with the parent in this shape; the tip's own
+  // payload makes the entry resolvable.
+  let located = locate_with(tip, [manifest_parent], all_selection)
+  assert_eq(get(located, "chain_depth"), Number(2.0))
+  assert_eq(get(located, "missing_parent"), Null)
+  assert_eq(get(located, "unresolved"), Array([]))
+  // `audit` resolves payloads, so a parent with no `objects` member is refused rather than
+  // passed: `stored_objects` reports None and the audit says so. That is the arm below, and
+  // it is the reason a manifest-only snapshot is only good as a reference.
+  let audited = try {
+    ignore(audit_with(tip, [manifest_parent]))
+    "no refusal"
+  } catch {
+    InputError(text) => text
+    _ => "other error"
+  }
+  assert_eq(audited, "expected object")
+}

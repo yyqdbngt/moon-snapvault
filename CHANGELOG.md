@@ -28,6 +28,20 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Coverage, third pass: the remainder is defensive
+
+- Three more reachable arms tested: an object reused within one format 2 request, a file
+  entry with no `mode` (defaults to 0644), an absent `digests` member, and a manifest-only
+  parent - which `locate` reads happily while `audit` refuses it, because the latter needs
+  payloads.
+- A fourth guard confirmed unreachable rather than untested: the `format < 3` reuse arm
+  needs a `previous` snapshot in an old format, and that is refused before the walk at
+  `a parent chain requires format 3`. Both the refusal and the reachable format 2 dedup path
+  are now asserted.
+- 116 declarations, 894 of 953 lines (93.8%). The remaining 59 are statement lines with no
+  branch, arms behind a check that runs first, and the two measured base64 refusals. Going
+  further would mean contriving inputs the format forbids or deleting defensive code.
+
 ### Coverage, second pass: three guards that cannot fire
 
 - Following the coverage report turned up more unexecuted branches: the accessors that turn
