@@ -1,0 +1,9 @@
+supported_targets = "js"
+
+import {
+  "yyqdbngt/moon_snapvault" @engine,
+  "moonbitlang/core/json",
+  "moonbitlang/core/encoding/base64",
+}
+
+pkgtype(kind: "executable")

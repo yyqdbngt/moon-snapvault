@@ -2,6 +2,4 @@ import {
   "moonbitlang/core/json",
   "moonbitlang/core/debug",
   "moonbitlang/core/encoding/utf8",
-  "moonbitlang/core/encoding/base64",
-  "gmlewis/sha256",
 }

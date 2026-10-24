@@ -1,13 +1,4 @@
 ///|
-pub fn digest(bytes : Bytes) -> String {
-  let state = @sha256.Digest::new()
-  for byte in bytes {
-    state.write(byte)
-  }
-  state.check_sum()
-}
-
-///|
 pub fn safe_path(path : String) -> Bool {
   if path == "" ||
     path.has_prefix("/") ||
@@ -99,9 +90,7 @@ fn decode_bytes(value : Value) -> Bytes raise {
 /// the up to four characters of a decimal array, and it avoids materialising a
 /// JSON array of numbers for every file.
 fn base64_to_bytes(text : String) -> Bytes? {
-  Some(@base64.decode(text[:])) catch {
-    _ => None
-  }
+  base64_decode(text)
 }
 
 ///|
@@ -109,7 +98,7 @@ fn encode_object(version : Int32, bytes : Bytes) -> Value {
   if version == 1 {
     bytes_value(bytes)
   } else {
-    String(@base64.encode(bytes[:]))
+    String(base64_encode(bytes))
   }
 }
 
