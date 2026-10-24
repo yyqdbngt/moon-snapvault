@@ -125,6 +125,24 @@ a different but internally consistent snapshot; and a mode change with a recompu
 checksum is reported valid, which is the documented limit of an integrity check that is
 not a signature.
 
+### A documented invocation has to work
+
+`--path` and `--format` were unreachable. The parser read the fourth argument as the
+parent snapshot and only scanned for options *after* it, so the exact form the README
+shows - `restore current.json DEST --path docs` - bound `--path` as a filename and failed
+with `Snapshot file does not exist: --path`. The same held for `squash ... --format 2`.
+
+That meant two documented capabilities, selective restore and choosing the output format,
+could not be used from the adapter at all. The library functions behind them were correct
+and covered; only the command line was not, and nothing tested a command line with a flag
+in it.
+
+Options are now pulled out of the whole argument list before anything is read
+positionally, so they may appear anywhere. A missing value, a value out of range and an
+unknown flag are each named and exit 2, since all three are usage mistakes. The CLI
+contract test exercises the documented forms and each of those three refusals, and was
+confirmed to fail when `--path` goes back to being a positional.
+
 ### Refusals name the entry
 
 Walking a source tree can refuse five things: a symbolic link, a special file, an entry

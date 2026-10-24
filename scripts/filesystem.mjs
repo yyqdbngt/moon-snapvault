@@ -691,23 +691,50 @@ export function restore(snapshotFile, destination, chain = [], paths = []) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const [operation, source, destination, previous, ...rest] = process.argv.slice(2);
-    if (!source || !destination) {
-      throw new Error([
-        'Usage:',
-        '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]]',
-        '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P ...]',
-        '  filesystem.mjs squash  SNAPSHOT DEST [PARENT...] [--format N]',
-      ].join('\n'));
-    }
+    // Options are pulled out of the whole argument list before anything is read
+    // positionally. They used to be scanned only after the fourth argument, so
+    // `restore SNAP DEST --path docs` - the form the README shows - bound `--path` to
+    // the parent-snapshot slot and both documented flags were unreachable.
+    const usage = [
+      'Usage:',
+      '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]]',
+      '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P ...]',
+      '  filesystem.mjs squash  SNAPSHOT DEST [PARENT...] [--format N]',
+    ].join('\n');
+    // Argument problems are usage errors and exit 2; everything else is exit 1. Marking
+    // them is more reliable than matching the message text, which is how `--format 9`
+    // ended up reported as a runtime failure.
+    const usageError = (message) => {
+      const err = new Error(message);
+      err.isUsage = true;
+      return err;
+    };
+    const argv = process.argv.slice(2);
     const paths = [];
     let format = 3;
-    const chain = [];
-    for (let i = 0; i < rest.length; i++) {
-      if (rest[i] === '--path') paths.push(rest[++i]);
-      else if (rest[i] === '--format') format = Number(rest[++i]);
-      else chain.push(rest[i]);
+    const positional = [];
+    for (let i = 0; i < argv.length; i++) {
+      if (argv[i] === '--path') {
+        const value = argv[++i];
+        if (value === undefined) throw usageError(usage + '\n--path needs a value');
+        paths.push(value);
+      } else if (argv[i] === '--format') {
+        const value = argv[++i];
+        if (value === undefined) throw usageError(usage + '\n--format needs a value');
+        if (!/^[123]$/.test(value)) {
+          throw usageError('--format takes 1, 2 or 3, not ' + JSON.stringify(value));
+        }
+        format = Number(value);
+      } else if (argv[i].startsWith('--')) {
+        // A flag this tool does not know is a mistake worth naming; silently treating it
+        // as a path would send the caller looking for a snapshot that was never meant.
+        throw usageError(usage + '\nUnknown option: ' + argv[i]);
+      } else {
+        positional.push(argv[i]);
+      }
     }
+    const [operation, source, destination, previous, ...chain] = positional;
+    if (!source || !destination) throw usageError(usage);
     if (operation === 'backup') {
       console.log(JSON.stringify(backup(source, destination, previous, chain)));
     } else if (operation === 'restore') {
@@ -722,7 +749,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     // One envelope for both CLIs. This one used to print a bare reason on stderr, so a
     // caller had to parse JSON from one tool and free text from another, on different
     // streams. A usage mistake is exit 2 here as well, matching the core CLI.
-    const usage = err.message.startsWith('Usage:') || err.message.startsWith('Unknown operation:');
+    const usage = err.isUsage === true
+      || err.message.startsWith('Usage:')
+      || err.message.startsWith('Unknown operation:');
     console.log(JSON.stringify({error: err.message}));
     process.exitCode = usage ? 2 : 1;
   }

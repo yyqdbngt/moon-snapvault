@@ -28,6 +28,21 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Two documented flags were unreachable
+
+- Fixed: `restore ... --path docs` and `squash ... --format 2` - both the forms the README
+  shows - failed with `Snapshot file does not exist: --path`. The parser took the fourth
+  argument as the parent snapshot and only looked for options after it, so the flags bound
+  to a filename. Selective restore and choosing the output format were therefore not
+  reachable from the adapter at all, though the library functions behind them were correct
+  and covered.
+- Options are now extracted from the whole argument list before anything is read
+  positionally, so they may appear anywhere. A missing value, an out-of-range `--format`
+  and an unknown option are each named and exit 2.
+- The CLI contract test now runs the documented forms and the three refusals; confirmed to
+  fail when `--path` is treated as a positional again, and when `--format` stops being
+  validated.
+
 ### One error contract, for both entry points
 
 - `scripts/filesystem.mjs` printed failures as free text on stderr and exited 1 for a

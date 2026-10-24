@@ -91,6 +91,55 @@ try {
   check('adapter: destination that already exists', invoke(adapter,
     ['restore', snapshot, source]), 1);
 
+  // --- the flags the docs show -------------------------------------------
+  // `--path` and `--format` were unreachable: the parser only scanned arguments after
+  // the fourth, so both flags bound to the parent-snapshot slot and the documented
+  // invocations failed with "Snapshot file does not exist: --path". A documented form
+  // that cannot run is worse than an undocumented one, so both are exercised here.
+  {
+    const tree = path.join(work, 'tree');
+    fs.mkdirSync(path.join(tree, 'docs'), {recursive: true});
+    fs.writeFileSync(path.join(tree, 'a.txt'), 'a');
+    fs.writeFileSync(path.join(tree, 'docs', 'x.md'), 'x');
+    const treeSnapshot = path.join(work, 'tree.json');
+    check('adapter: backup a tree', invoke(adapter, ['backup', tree, treeSnapshot]), 0);
+
+    const subset = check('adapter: restore --path',
+      invoke(adapter, ['restore', treeSnapshot, path.join(work, 'subset'), '--path', 'docs']), 0);
+    if (subset) {
+      if (subset.files !== 1) {
+        problems.push(`restore --path docs selected ${subset.files} files, wanted 1`);
+      }
+      // The selection keeps the path as recorded, so `docs` arrives as a directory.
+      const kept = fs.readdirSync(path.join(work, 'subset'));
+      const inside = fs.existsSync(path.join(work, 'subset', 'docs'))
+        ? fs.readdirSync(path.join(work, 'subset', 'docs')) : [];
+      if (kept.length !== 1 || kept[0] !== 'docs' || inside.join() !== 'x.md') {
+        problems.push('restore --path docs wrote ' + JSON.stringify(kept)
+          + ' containing ' + JSON.stringify(inside));
+      }
+    }
+
+    const folded = check('adapter: squash --format',
+      invoke(adapter, ['squash', treeSnapshot, path.join(work, 'flat.json'), '--format', '2']), 0);
+    if (folded && folded.format !== 2) {
+      problems.push(`squash --format 2 produced format ${folded.format}`);
+    }
+
+    // A flag with no value, a value out of range, and a flag that does not exist must all
+    // be named rather than silently treated as a path.
+    for (const [label, args] of [
+      ['--path with no value', ['restore', treeSnapshot, path.join(work, 'x1'), '--path']],
+      ['--format out of range', ['squash', treeSnapshot, path.join(work, 'x2.json'), '--format', '9']],
+      ['unknown option', ['restore', treeSnapshot, path.join(work, 'x3'), '--nope']],
+    ]) {
+      const parsed = check('adapter: ' + label, invoke(adapter, args), 2);
+      if (parsed && !/--path|--format|--nope/.test(parsed.error)) {
+        problems.push(`${label}: message does not name the option: ${parsed.error.slice(0, 80)}`);
+      }
+    }
+  }
+
   // --- usage, both tools --------------------------------------------------
   check('core: no arguments', invoke(core, []), 2);
   check('adapter: no arguments', invoke(adapter, []), 2);
