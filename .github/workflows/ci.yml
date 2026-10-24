@@ -72,6 +72,7 @@ jobs:
       - run: moon build --target js --release
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
+      - run: node scripts/consumer-smoke.mjs
       - run: python3 -B scripts/robustness.py
       - run: node scripts/integration.mjs
   # Windows is the only platform whose rules the other jobs cannot exercise: the
@@ -93,4 +94,5 @@ jobs:
       - run: moon build --target js --release
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
+      - run: node scripts/consumer-smoke.mjs
       - run: node scripts/integration.mjs
