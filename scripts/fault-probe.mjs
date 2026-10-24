@@ -107,7 +107,14 @@ try {
   if (result.status === 0) {
     problems.push('the restore was expected to fail on a volume this small, but succeeded');
   }
-  const message = (result.stderr || '').trim().split('\n')[0];
+  // The adapter reports failures as {"error": ...} on stdout. This probe used to read
+  // stderr, which was correct until both CLIs were given one envelope; the macOS CI job
+  // caught the mismatch immediately, which is why the probe runs there.
+  let message = (result.stderr || '').trim().split('\n')[0];
+  try {
+    const parsed = JSON.parse(result.stdout);
+    if (typeof parsed.error === 'string') message = parsed.error;
+  } catch { /* not JSON: keep stderr */ }
   console.log('probe: error is ' + JSON.stringify(message));
 
   if (!/partial destination is retained/i.test(message)) {
