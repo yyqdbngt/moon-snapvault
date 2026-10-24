@@ -1,7 +1,23 @@
 ///|
 pub(all) suberror InputError {
   InputError(String)
-} derive(Show, Eq)
+} derive(Eq, Debug)
+
+///|
+pub extend InputError with Eq::{not_equal, equal}
+
+///|
+pub extend InputError with @debug.Debug::{to_repr}
+
+///|
+pub impl Show for InputError with fn output(self, logger) {
+  match self {
+    InputError(message) => Logger::write_string(logger, message)
+  }
+}
+
+///|
+pub extend InputError with Show::{to_string, output}
 
 ///|
 fn get(value : Value, key : String) -> Value {
@@ -61,7 +77,7 @@ fn optional_num(value : Value, fallback : Double) -> Double raise InputError {
 
 ///|
 fn record(fields : Array[(String, Value)]) -> Value {
-  let result : Map[String, Value] = {}
+  let result : Map[String, Value] = Map([])
   for (key, value) in fields {
     result[key] = value
   }
@@ -75,7 +91,7 @@ fn strings(items : Array[String]) -> Value {
 
 ///|
 fn string_list(value : Value) -> Array[String] raise InputError {
-  arr(value).map(fn(item) { str(item) })
+  arr(value).map(item => str(item))
 }
 
 ///|
@@ -96,13 +112,11 @@ fn canonical(value : Value) -> String {
 }
 
 ///|
-fn truth(value : Value) -> Bool {
-  match value {
-    Bool(b) => b
-    Null => false
-    Number(n) => n != 0.0
-    String(s) => s != ""
-    Array(a) => !a.is_empty()
-    Object(o) => !o.is_empty()
-  }
+fn lexical(a : String, b : String) -> Int32 {
+  a.view().lexical_compare(b.view())
+}
+
+///|
+fn sort_strings(items : Array[String]) -> Unit {
+  items.sort_by(lexical)
 }

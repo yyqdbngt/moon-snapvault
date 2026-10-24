@@ -9,6 +9,12 @@ pub(all) enum Value {
 } derive(Eq, Debug)
 
 ///|
+pub extend Value with Eq::{not_equal, equal}
+
+///|
+pub extend Value with @debug.Debug::{to_repr}
+
+///|
 pub fn from_json(value : Json) -> Value {
   match value {
     Json::Null => Null
@@ -39,7 +45,7 @@ pub fn Value::stringify(self : Value) -> String {
 }
 
 ///|
-fn parse_value(source : StringView) -> Value raise {
+pub fn parse_value(source : StringView) -> Value raise {
   from_json(@json.parse(source))
 }
 

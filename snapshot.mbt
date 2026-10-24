@@ -28,13 +28,7 @@ pub fn safe_path(path : String) -> Bool {
       part.has_suffix(" ") {
       return false
     }
-    let stem = part
-      .to_string()
-      .split(".")
-      .head()
-      .unwrap()
-      .to_string()
-      .to_lower()
+    let stem = part.to_owned().split(".").head().unwrap().to_owned().to_lower()
     if [
         "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6",
         "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7",
@@ -47,22 +41,55 @@ pub fn safe_path(path : String) -> Bool {
 }
 
 ///|
+fn path_of(file : Value) -> String {
+  match file {
+    Object(fields) =>
+      match fields.get("path") {
+        Some(String(path)) => path
+        _ => ""
+      }
+    _ => ""
+  }
+}
+
+///|
 fn bytes_value(bytes : Bytes) -> Value {
   Array(bytes.iter().map(fn(b) { Number(b.to_int().to_double()) }).collect())
 }
 
 ///|
-fn decode_bytes(value : Value) -> Bytes raise {
-  let values = arr(value)
-  let bytes : Array[Byte] = []
-  for i = 0; i < values.length(); i = i + 1 {
-    let number = num(values[i])
-    if number < 0.0 || number > 255.0 || number.floor() != number {
-      raise InputError("invalid byte value")
+fn is_byte(number : Double) -> Bool {
+  !number.is_nan() &&
+  !number.is_inf() &&
+  number >= 0.0 &&
+  number <= 255.0 &&
+  number.floor() == number
+}
+
+///|
+fn decode_bytes_opt(value : Value) -> Bytes? {
+  match value {
+    Array(values) => {
+      let bytes : Array[Byte] = []
+      for item in values {
+        match item {
+          Number(number) if is_byte(number) =>
+            bytes.push(number.to_int().to_byte())
+          _ => return None
+        }
+      }
+      Some(Bytes::from_array(bytes))
     }
-    bytes.push(number.to_int().to_byte())
+    _ => None
   }
-  Bytes::from_array(bytes)
+}
+
+///|
+fn decode_bytes(value : Value) -> Bytes raise {
+  match decode_bytes_opt(value) {
+    Some(bytes) => bytes
+    None => raise InputError("invalid byte value")
+  }
 }
 
 ///|
@@ -107,7 +134,7 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
     paths[path.to_lower()] = true
     let mut prefix = ""
     for part in path.split("/") {
-      prefix += (if prefix == "" { "" } else { "/" }) + part.to_string()
+      prefix += (if prefix == "" { "" } else { "/" }) + part.to_owned()
       let key = prefix.to_lower()
       match names.get(key) {
         Some(existing) =>
@@ -126,10 +153,7 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
       raise InputError("invalid manifest file mode")
     }
     let hash = str(get(file, "digest"))
-    if hash.length() != 64 ||
-      !hash
-      .to_array()
-      .all(fn(c) { (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') }) {
+    if !is_object_id(hash) {
       raise InputError("invalid SHA-256 identifier")
     }
   }
@@ -138,7 +162,7 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
     while true {
       match parent.rev_split_once("/") {
         None => break
-        Some((before, _)) => parent = before.to_string()
+        Some((before, _)) => parent = before.to_owned()
       }
       if paths.contains(parent.to_lower()) {
         raise InputError("file/directory path collision")
@@ -149,45 +173,76 @@ fn manifest(snapshot : Value) -> Array[Value] raise {
 }
 
 ///|
+fn is_object_id(hash : String) -> Bool {
+  hash.length() == 64 &&
+  hash
+  .to_array()
+  .all(fn(c) { (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') })
+}
+
+///|
+fn issue(path : Value, object : String, reason : String) -> Value {
+  record([
+    ("path", path),
+    ("object", String(object)),
+    ("reason", String(reason)),
+  ])
+}
+
+///|
 pub fn audit_snapshot(snapshot : Value) -> Value raise {
   let files = manifest(snapshot)
   let objects = obj(get(snapshot, "objects"))
   let issues : Array[Value] = []
-  let checked : Map[String, Bool] = Map([])
+  let referenced : Map[String, Bool] = Map([])
   for file in files {
-    let hash = str(get(file, "digest"))
-    let path = str(get(file, "path"))
-    match objects.get(hash) {
-      None =>
-        issues.push(
-          record([("path", String(path)), ("reason", String("missing object"))]),
-        )
-      Some(raw) => {
-        let bytes = decode_bytes(raw)
-        if Number(bytes.length().to_double()) != get(file, "size") {
-          issues.push(
-            record([("path", String(path)), ("reason", String("size mismatch"))]),
-          )
-        }
-        if !checked.contains(hash) {
-          if digest(bytes) != hash {
-            issues.push(
-              record([
-                ("path", String(path)),
-                ("reason", String("digest mismatch")),
-              ]),
-            )
-          }
-          checked[hash] = true
+    referenced[str(get(file, "digest"))] = true
+  }
+  // Every stored object is verified, referenced or not: a snapshot with a
+  // corrupt unreferenced object is not reported as valid.
+  let mut checked = 0
+  let mut unreferenced = 0
+  for hash, raw in objects {
+    if !is_object_id(hash) {
+      issues.push(issue(Null, hash, "invalid object identifier"))
+      continue
+    }
+    if !referenced.contains(hash) {
+      unreferenced += 1
+    }
+    match decode_bytes_opt(raw) {
+      None => issues.push(issue(Null, hash, "invalid byte encoding"))
+      Some(bytes) => {
+        checked += 1
+        if digest(bytes) != hash {
+          issues.push(issue(Null, hash, "digest mismatch"))
         }
       }
+    }
+  }
+  for file in files {
+    let hash = str(get(file, "digest"))
+    let path = String(str(get(file, "path")))
+    match objects.get(hash) {
+      None => issues.push(issue(path, hash, "missing object"))
+      Some(raw) =>
+        match decode_bytes_opt(raw) {
+          None => ()
+          Some(bytes) =>
+            if Number(bytes.length().to_double()) != get(file, "size") {
+              issues.push(issue(path, hash, "size mismatch"))
+            }
+        }
     }
   }
   record([
     ("valid", Bool(issues.is_empty())),
     ("issues", Array(issues)),
     ("files", Number(files.length().to_double())),
-    ("objects_checked", Number(checked.length().to_double())),
+    ("objects_total", Number(objects.length().to_double())),
+    ("objects_checked", Number(checked.to_double())),
+    ("referenced_objects", Number(referenced.length().to_double())),
+    ("unreferenced_objects", Number(unreferenced.to_double())),
   ])
 }
 
@@ -215,9 +270,9 @@ pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
       removed.push(path)
     }
   }
-  added.sort()
-  removed.sort()
-  modified.sort()
+  sort_strings(added)
+  sort_strings(removed)
+  sort_strings(modified)
   record([
     ("added", strings(added)),
     ("removed", strings(removed)),
@@ -271,9 +326,7 @@ pub fn create_snapshot(
       ]),
     )
   }
-  files.sort_by(fn(a, b) {
-    canonical(get(a, "path")).compare(canonical(get(b, "path")))
-  })
+  files.sort_by(fn(a, b) { lexical(path_of(a), path_of(b)) })
   let snapshot = record([
     ("version", Number(1.0)),
     ("files", Array(files)),
@@ -321,7 +374,7 @@ pub fn run(request : Value) -> Value raise {
         raise InputError("cannot restore corrupted snapshot")
       }
       let objects = obj(get(snapshot, "objects"))
-      let files = manifest(snapshot).map(fn(file) {
+      let files = manifest(snapshot).map(file => {
         let result = obj(file).copy()
         result["bytes"] = objects[str(get(file, "digest"))]
         Object(result)

@@ -12,10 +12,8 @@ pub fn retention_plan(request : Value) -> Value raise {
     if get(audit_snapshot(snapshot), "valid") != Bool(true) {
       raise InputError("retention refuses a corrupt snapshot")
     }
+    // audit_snapshot has already verified every stored object, referenced or not.
     for hash, raw in obj(get(snapshot, "objects")) {
-      if digest(decode_bytes(raw)) != hash {
-        raise InputError("retention refuses corrupt unreferenced content")
-      }
       match objects.get(hash) {
         Some(existing) =>
           if existing != raw {
@@ -56,12 +54,12 @@ pub fn retention_plan(request : Value) -> Value raise {
       collectible_bytes += size
     }
   }
-  kept.sort()
-  collectible.sort()
+  sort_strings(kept)
+  sort_strings(collectible)
   let kept_snapshots = selected.keys().collect()
-  kept_snapshots.sort()
+  sort_strings(kept_snapshots)
   let dropped = by_id.keys().filter(fn(id) { !selected.contains(id) }).collect()
-  dropped.sort()
+  sort_strings(dropped)
   record([
     ("keep_snapshots", strings(kept_snapshots)),
     ("drop_snapshots", strings(dropped)),

@@ -18,6 +18,8 @@ pub fn execute(Json) -> Json raise
 
 pub fn from_json(Json) -> Value
 
+pub fn parse_value(StringView) -> Value raise
+
 pub fn retention_plan(Value) -> Value raise
 
 pub fn run(Value) -> Value raise
@@ -27,7 +29,13 @@ pub fn safe_path(String) -> Bool
 // Errors
 pub(all) suberror InputError {
   InputError(String)
-} derive(Eq, Show)
+} derive(Eq, @debug.Debug)
+pub fn InputError::equal(Self, Self) -> Bool
+pub fn InputError::not_equal(Self, Self) -> Bool
+pub fn InputError::output(Self, &Logger) -> Unit
+pub fn InputError::to_repr(Self) -> @debug.Repr
+pub fn InputError::to_string(Self) -> String
+pub impl Show for InputError
 
 // Types and methods
 pub(all) enum Value {
@@ -38,8 +46,11 @@ pub(all) enum Value {
   Array(Array[Value])
   Object(Map[String, Value])
 } derive(Eq, @debug.Debug)
+pub fn Value::equal(Self, Self) -> Bool
+pub fn Value::not_equal(Self, Self) -> Bool
 pub fn Value::stringify(Self) -> String
 pub fn Value::to_json(Self) -> Json
+pub fn Value::to_repr(Self) -> @debug.Repr
 
 // Type aliases
 
