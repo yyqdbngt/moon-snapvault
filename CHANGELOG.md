@@ -28,6 +28,23 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Byte-identical output across backends, finally checked
+
+- The claim that the four backends serialize identically was justified by one manual
+  comparison and a single `stringify` assertion. The CLI is JS only, so the fixtures
+  could not check it either: `moon test --target native` ran the tests but none of them
+  asserted bytes.
+- `serialization_wbtest.mbt` pins number spelling (`420`, `1e+21`, `-0.0` as `0`),
+  escaping, the difference between `stringify` and `canonical`, the `canonical` key
+  order, and the checksums of the same tree in format 2 and format 3. All four targets
+  now check them on every build, against constants computed with Python's `hashlib`
+  rather than copied from the implementation.
+- Verified load-bearing: replacing the length-first key order with a plain sort fails the
+  test on every backend.
+- Also pinned as a side effect: `create_snapshot` defaults to format 2, and the two
+  formats produce different checksums for identical file lists because the checksum
+  covers `version`.
+
 ### A systematic mutation sweep over `audit`
 
 - `scripts/mutation_sweep.py`: mutates every field of a valid snapshot in turn - missing,

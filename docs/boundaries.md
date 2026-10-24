@@ -42,6 +42,25 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Cross-backend serialization is pinned, where all four backends run
+
+The project claims byte-identical output across the JS, wasm, wasm-gc and native
+backends, and this document leans on that claim when it justifies pinning whole
+answers. It was never checked continuously: the CLI is JS only, and the fixture suite
+compares exact strings only through it. `moon test --target native` ran the tests, but
+no test there asserted serialized bytes.
+
+`serialization_wbtest.mbt` closes that: it pins the exact spelling of numbers (including
+`420` rather than `420.0`, `1e+21`, and `-0.0` collapsing to `0`), the escaping rules,
+the difference between `stringify` (insertion order) and `canonical` (sorted), the
+`canonical` key order itself, and two snapshot checksums. Because those constants are
+asserted in a white-box test, all four targets check them on every build, and the check
+rests on Python-computed constants rather than on values copied back from the
+implementation.
+
+Changing `canonical` to a plain lexicographic sort makes the test fail on every backend,
+which is the failure mode the claim is about.
+
 ### Every field, mutated every way
 
 `robustness.py` asks whether an input yields one JSON object and a clean exit; it never
