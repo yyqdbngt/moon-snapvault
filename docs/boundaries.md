@@ -237,6 +237,29 @@ more correct. Most of the remainder is defensive: the padding
 re-check and the `written != decoded_length` check in base64 decoding cannot fail given how
 `data` and `padding` are derived, and they stay as defensive code with the count pinned.
 
+### Backward compatibility is tested against the published version
+
+`0.2.0` is what `moon add` resolves, so anyone who used it has snapshots on disk.
+`tests/compat/` holds two of them, produced by that published version from MoonCakes and
+committed unchanged, and `scripts/compat.mjs` reads them with the current code: audit,
+restore, diff and retention. The fixtures are `"version": 1` with decimal byte arrays, a
+shape nothing else in the suite produces - the format-1 fixtures are written by hand from the
+current code, which is exactly the circularity this avoids.
+
+Two facts about the published version came out of building the fixtures, and both were
+assumptions I would otherwise have got wrong:
+
+- **Its deltas are self-contained.** `previous=` was accepted and changed only the statistics;
+  the bytes written were the whole tree. Real incremental storage arrived with format 3, so
+  there is no 0.2.0 chain to extend.
+- **It writes format 1 only.** There is no way to ask it for the base64 layout; that is format
+  2, added after publication. So "both older formats stay readable" in the README refers to
+  files the current code can write, plus these real ones.
+
+Verified load-bearing by disabling the format 1 payload decoder: the test then reports four
+readable failures - two snapshots that no longer audit clean, a refused restore and a refused
+retention plan - rather than the stack trace it produced before that was fixed.
+
 ### Documentation commands are executed, not just written
 
 `scripts/doc-commands.mjs` parses every shell block in the documentation, classifies each

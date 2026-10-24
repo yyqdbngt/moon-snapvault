@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Backward compatibility with the published 0.2.0
+
+- `tests/compat/` holds two snapshots produced by `yyqdbngt/moon_snapvault@0.2.0` from
+  MoonCakes and committed unchanged; `scripts/compat.mjs` reads them with the current code and
+  checks audit, restore, diff and retention. They are `"version": 1` with decimal byte arrays,
+  a shape nothing else in the suite produces.
+- Two facts about the published version came out of building them: its `previous=` parameter
+  changed only the statistics, so its deltas were self-contained and there is no 0.2.0 chain to
+  extend; and it writes format 1 only, format 2 having been added after publication.
+- Verified by disabling the format 1 payload decoder: the test reports four readable failures
+  rather than a stack trace, which is how its first version behaved and what prompted fixing
+  the error handling.
+
 ### Documented timings, re-measured and then guarded
 
 - The README's performance figures were hand-copied from a benchmark and checked by nothing.

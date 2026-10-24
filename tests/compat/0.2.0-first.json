@@ -1,0 +1,40 @@
+{
+  "checksum": "9d28a7f6ddbe4d406b5cf642ad50bfe64ef7dcf7446c24e0eda8315c8bca9ac7",
+  "files": [
+    {
+      "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      "mode": 420,
+      "path": "a.txt",
+      "size": 3
+    },
+    {
+      "digest": "92e469e6f34332f611f46cc5371592264628458db80d2a9c40310daec8384d23",
+      "mode": 420,
+      "path": "bin.dat",
+      "size": 3
+    },
+    {
+      "digest": "959a45d44e6fcf58361ed004681556fe50129f2109e817dec098c00c9e5d2578",
+      "mode": 420,
+      "path": "docs/b.md",
+      "size": 2
+    }
+  ],
+  "objects": {
+    "92e469e6f34332f611f46cc5371592264628458db80d2a9c40310daec8384d23": [
+      0,
+      255,
+      7
+    ],
+    "959a45d44e6fcf58361ed004681556fe50129f2109e817dec098c00c9e5d2578": [
+      100,
+      101
+    ],
+    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": [
+      97,
+      98,
+      99
+    ]
+  },
+  "version": 1
+}

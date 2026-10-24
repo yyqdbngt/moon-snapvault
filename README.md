@@ -92,6 +92,7 @@ python -B scripts/docs.py
 node scripts/doc-commands.mjs
 node scripts/coverage.mjs
 node scripts/cli-contract.mjs
+node scripts/compat.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs
 node scripts/stats.mjs
