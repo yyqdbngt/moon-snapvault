@@ -28,6 +28,17 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Concurrent publication
+
+- The claim that a destination is created exclusively was asserted in a code comment
+  and tested nowhere. The integration suite now races six processes at one snapshot
+  path and six at one restore destination, and checks that exactly one wins, the rest
+  are refused, no temporary file survives and the restored tree is byte-identical to
+  its source. Replacing the hard link with a copy makes the suite fail.
+- Losing that race used to surface as a raw `EEXIST` from Node. The two cases now say
+  what happened: `A snapshot already exists at ...; snapshots are never replaced` and
+  `The destination already exists: ...; restore requires a new directory`.
+
 ### Shipped examples were never run
 
 - `examples/` had four files and nothing executed any of them, including the one the

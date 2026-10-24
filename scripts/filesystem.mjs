@@ -173,8 +173,19 @@ export function backup(source, destination, previous, chain = []) {
   const tmp = output + '.' + randomUUID() + '.tmp';
   try {
     fs.writeFileSync(tmp, JSON.stringify(result.snapshot), {flag: 'wx'});
-    // Exclusive publication prevents replacing an existing snapshot.
-    fs.linkSync(tmp, output);
+    // A hard link is the publication step: it fails if the name exists, so two
+    // processes racing to the same destination produce one snapshot and one clear
+    // failure rather than a mixed file. EEXIST is therefore the expected outcome of
+    // losing that race, not an I/O fault, and should say so.
+    try {
+      fs.linkSync(tmp, output);
+    } catch (err) {
+      if (err.code === 'EEXIST') {
+        throw new Error('A snapshot already exists at ' + output
+          + '; snapshots are never replaced');
+      }
+      throw err;
+    }
   } finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
   return {
     ...result.statistics,
@@ -499,7 +510,17 @@ export function restore(snapshotFile, destination, chain = [], paths = []) {
   portablePaths(verified.files);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
-  fs.mkdirSync(output); // Must be a new directory; existing targets are rejected.
+  // The destination must be new. Creating it exclusively means a concurrent restore
+  // to the same path cannot interleave two trees, and EEXIST is that check firing.
+  try {
+    fs.mkdirSync(output);
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      throw new Error('The destination already exists: ' + output
+        + '; restore requires a new directory');
+    }
+    throw err;
+  }
   let modes = 0;
   try {
     for (const file of verified.files) {

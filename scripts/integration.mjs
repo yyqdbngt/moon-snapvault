@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import {spawn} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -213,6 +215,63 @@ try {
     }
   }
 
+  // Concurrent publication. The claim is that a destination is created exclusively,
+  // so racing processes produce one snapshot and clear failures rather than a mixed
+  // file. That was never exercised: the code comment asserted it and nothing tested
+  // it. Both operations are checked because both write into a name that must not
+  // already exist.
+  {
+    const raceDir = path.join(base, 'race');
+    const raceSrc = path.join(raceDir, 'src');
+    fs.mkdirSync(raceSrc, {recursive: true});
+    for (let i = 0; i < 4; i++) {
+      fs.writeFileSync(path.join(raceSrc, `f${i}.bin`), Buffer.alloc(150000, i));
+    }
+    const filesystem = fileURLToPath(new URL('./filesystem.mjs', import.meta.url));
+    const spawnOne = (args) => new Promise((resolve) => {
+      const child = spawn(process.execPath, [filesystem, ...args]);
+      let err = '';
+      child.stderr.on('data', (chunk) => err += chunk);
+      child.on('close', (code) => resolve({code, err}));
+    });
+
+    const racedSnapshot = path.join(raceDir, 'raced.json');
+    const backups = await Promise.all(
+      Array.from({length: 6}, () => spawnOne(['backup', raceSrc, racedSnapshot])));
+    assert.equal(backups.filter((r) => r.code === 0).length, 1,
+      'exactly one concurrent backup may publish');
+    const backupLosers = backups.filter((r) => r.code !== 0);
+    assert.equal(backupLosers.length, 5);
+    for (const loser of backupLosers) {
+      assert.match(loser.err, /already exists at .*; snapshots are never replaced/,
+        'a lost publication race must say what happened, not leak EEXIST');
+    }
+    assert.equal(fs.readdirSync(raceDir).filter((n) => n.includes('.tmp')).length, 0,
+      'no temporary file may survive a lost race');
+    const published = read(racedSnapshot);
+    assert.equal(published.files.length, 4, 'the published snapshot must be complete');
+    assert.equal(engine({operation: 'audit', snapshot: published}).valid, true,
+      'the published snapshot must be intact');
+
+    // The same for restore, whose destination must also be new.
+    const raceTarget = path.join(raceDir, 'raced-out');
+    const restores = await Promise.all(
+      Array.from({length: 6}, () => spawnOne(['restore', racedSnapshot, raceTarget])));
+    assert.equal(restores.filter((r) => r.code === 0).length, 1,
+      'exactly one concurrent restore may create the destination');
+    for (const loser of restores.filter((r) => r.code !== 0)) {
+      assert.match(loser.err, /destination already exists/i,
+        'a lost restore race must name the destination');
+    }
+    const restoredNames = fs.readdirSync(raceTarget).sort();
+    assert.equal(restoredNames.length, 4, 'the winning restore must be complete');
+    for (const name of restoredNames) {
+      assert.deepEqual(fs.readFileSync(path.join(raceTarget, name)),
+        fs.readFileSync(path.join(raceSrc, name)),
+        'no file may be a mixture of two concurrent restores');
+    }
+  }
+
   // Squashing compacts the whole chain into one self-contained file that no
   // longer needs its parents, and selects on the way out.
   const squashedFile = path.join(base, 'squashed.json');
@@ -413,7 +472,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

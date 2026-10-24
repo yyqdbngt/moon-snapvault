@@ -38,6 +38,24 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Concurrency
+
+Two processes may race to the same snapshot path or the same restore destination. The
+guarantee is narrow and therefore useful: one of them wins, the others fail with a
+message naming the conflict, and no destination is ever a mixture of two results.
+
+This holds because publication is a hard link, which fails when the name exists, and
+because a restore destination is created with an exclusive `mkdir`. Both were
+previously asserted in a comment and tested nowhere; the integration suite now races
+six processes at each and checks one winner, five specific refusals, no surviving
+temporary file, and byte equality between the restored tree and its source. Replacing
+the hard link with a plain copy makes the suite fail.
+
+What is not covered: concurrent *readers* of a snapshot being written, and a process
+killed between the link and the temporary-file cleanup. The former is safe by
+construction, since a name only ever refers to a complete snapshot; the latter can
+leave a `*.tmp` file next to the snapshot, which nothing reads.
+
 ### Examples are executed, not illustrated
 
 `examples/` ships with the package and every `*.json` in it is run by
