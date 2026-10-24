@@ -1,0 +1,28 @@
+{
+  "snapshot": {
+    "version": 2,
+    "files": [
+      {
+        "path": "hello.txt",
+        "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "size": 3,
+        "mode": 420
+      }
+    ],
+    "objects": {
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+    },
+    "checksum": "d8b0d8b271fe8433943e04bfa09177b3ae6fb0a271ff49c09cd9a17f4d3bf9a2"
+  },
+  "statistics": {
+    "total_bytes": 3,
+    "unique_bytes": 3,
+    "new_object_bytes": 3,
+    "reused_object_bytes": 0,
+    "deduplicated_bytes": 0,
+    "objects_stored": 1,
+    "objects_reused": 0,
+    "base_verified": true
+  },
+  "changes": null
+}

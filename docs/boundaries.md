@@ -38,6 +38,19 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Examples are executed, not illustrated
+
+`examples/` ships with the package and every `*.json` in it is run by
+`scripts/examples.mjs`, with the exact answer pinned under `examples/expected/`. Before
+this they were never executed: the request README tells a reader to run first had no
+test behind it, and the eleven operations were documented by example for three of them.
+The pinned files double as documentation, since each one is the answer a user really
+gets rather than one a walkthrough claims.
+
+The check also refuses to run against a build older than the source, for the same
+reason the fixture checker does: a stale artifact would test code that is no longer on
+disk.
+
 ### How much the fixtures actually pin
 
 Each fixture pins something different, and the difference matters when reading a

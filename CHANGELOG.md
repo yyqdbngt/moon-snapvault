@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Shipped examples were never run
+
+- `examples/` had four files and nothing executed any of them, including the one the
+  README tells a reader to run first. They are now covered by `scripts/examples.mjs`,
+  which runs each through the real CLI and compares against a pinned answer in
+  `examples/expected/`; `--write` regenerates. Part of `verify.sh` and CI.
+- Nine examples were added so that every operation has one: incremental format 3 with
+  an inline parent, audit, restore, diff, squash, retention showing a parent being
+  promoted to `required_snapshots`, locate, extract, and one refused request. Three
+  operations were documented by example before; eleven now are.
+- Verified the check catches drift: renaming a statistics key broke two examples and
+  changing a message broke the error example, both of which were invisible before.
+
 ### Fixtures now pin what they claim to
 
 - `scripts/check.mjs` grew two forms it should have had from the start. `"error": "text"`

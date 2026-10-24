@@ -1,0 +1,12 @@
+{
+  "keep_snapshots": [],
+  "required_snapshots": [],
+  "external_parents": [],
+  "drop_snapshots": [],
+  "reachable_objects": [],
+  "collectible_objects": [],
+  "live_bytes": 0,
+  "collectible_bytes": 0,
+  "plan_only": true,
+  "scope": "objects and chain links these snapshots need; no files are deleted"
+}

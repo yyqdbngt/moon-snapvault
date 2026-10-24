@@ -1,0 +1,28 @@
+{
+  "snapshot": {
+    "version": 2,
+    "files": [
+      {
+        "path": "zero.bin",
+        "digest": "2c8d07cd986f58eb210bd800133d6645c7340c59865377c8ea431cebca0b3113",
+        "size": 3,
+        "mode": 420
+      }
+    ],
+    "objects": {
+      "2c8d07cd986f58eb210bd800133d6645c7340c59865377c8ea431cebca0b3113": "AP8A"
+    },
+    "checksum": "7605a179c60a25a4e002921f7080070e003a64a78f5300da5d3398ee15bf162e"
+  },
+  "statistics": {
+    "total_bytes": 3,
+    "unique_bytes": 3,
+    "new_object_bytes": 3,
+    "reused_object_bytes": 0,
+    "deduplicated_bytes": 0,
+    "objects_stored": 1,
+    "objects_reused": 0,
+    "base_verified": true
+  },
+  "changes": null
+}

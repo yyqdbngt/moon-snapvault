@@ -1,0 +1,16 @@
+{
+  "format": 2,
+  "encoding": "base64",
+  "chain_depth": 1,
+  "files": [
+    {
+      "path": "notes.txt",
+      "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+      "size": 3,
+      "mode": 420,
+      "link": "a7ebc4f421e2468403ac10c1e8379b522e50a8d524322617a4d439328b2bcf70"
+    }
+  ],
+  "unresolved": [],
+  "missing_parent": null
+}

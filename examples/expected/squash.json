@@ -1,0 +1,32 @@
+{
+  "snapshot": {
+    "version": 3,
+    "parent": null,
+    "files": [
+      {
+        "path": "added.txt",
+        "digest": "3fc4ccfe745870e2c0d99f71f30ff0656c8dedd41cc1d7d3d376b0dbe685e2f3",
+        "size": 3,
+        "mode": 420
+      },
+      {
+        "path": "notes.txt",
+        "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+        "size": 3,
+        "mode": 420
+      }
+    ],
+    "objects": {
+      "3fc4ccfe745870e2c0d99f71f30ff0656c8dedd41cc1d7d3d376b0dbe685e2f3": "dHdv",
+      "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+    },
+    "checksum": "7550c68010720baf1e62c44c7820f10977b4de1a9f8ee8967e7e581ac0406fea"
+  },
+  "statistics": {
+    "format": 3,
+    "chain_depth": 2,
+    "files": 2,
+    "objects": 2,
+    "bytes": 6
+  }
+}

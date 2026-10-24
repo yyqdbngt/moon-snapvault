@@ -42,6 +42,9 @@ node scripts/interface.mjs
 # to see exactly what pkg.generated.mbti promises: `pub` is module-scoped, so a
 # sub-package would see more than a real consumer.
 node scripts/consumer-smoke.mjs
+# The examples ship with the package and are the first thing README tells a reader
+# to run, so their answers are pinned rather than assumed.
+node scripts/examples.mjs
 node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py

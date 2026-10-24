@@ -1,0 +1,17 @@
+{
+  "format": 2,
+  "encoding": "base64",
+  "chain_depth": 1,
+  "files": [
+    {
+      "path": "notes.txt",
+      "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+      "size": 3,
+      "mode": 420,
+      "bytes": "b25l"
+    }
+  ],
+  "selected": 1,
+  "total_files": 1,
+  "verified": true
+}

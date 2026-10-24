@@ -20,8 +20,12 @@ Use MoonBit (`moon` 0.1.20261012 or newer) and Node.js 24 for CI parity; Node.js
 moon update
 moon build --target js --release   # the adapter prefers this build
 moon run cmd/main --target js -- examples/scenario-1.json
-node _build/js/debug/build/cmd/main/main.js examples/scenario-1.json
+node _build/js/release/build/cmd/main/main.js examples/incremental.json
 ```
+
+[`examples/`](examples/README.md) holds one request per file covering every operation,
+and `examples/expected/` holds the exact answer each one produces. Those files are
+checked, so an example cannot quietly stop being true.
 
 Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. Successful requests print one JSON result. Every failure prints exactly one `{"error": "<message>"}` object on stdout and exits 1; usage errors exit 2. That contract also covers host-side failures (missing file, invalid UTF-8, oversize input), not just request validation. The host runner is a separate process and does not edit the input request file.
 
@@ -81,6 +85,7 @@ python -B scripts/followup_reference.py
 python -B scripts/delta_reference.py
 python -B scripts/fuzz.py 8
 python -B scripts/robustness.py
+node scripts/examples.mjs
 node scripts/stats.mjs
 node scripts/interface.mjs
 node scripts/consumer-smoke.mjs

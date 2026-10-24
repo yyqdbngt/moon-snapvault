@@ -1,0 +1,35 @@
+{
+  "operation": "diff",
+  "old": {
+    "version": 2,
+    "parent": null,
+    "files": [
+      {
+        "path": "notes.txt",
+        "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+        "size": 3,
+        "mode": 420
+      }
+    ],
+    "objects": {
+      "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+    },
+    "checksum": "a7ebc4f421e2468403ac10c1e8379b522e50a8d524322617a4d439328b2bcf70"
+  },
+  "new": {
+    "version": 2,
+    "parent": null,
+    "files": [
+      {
+        "path": "notes.txt",
+        "digest": "b6f00f283e24783b68eb63deb8c6f492dfafd29a45a11fa7c2725869596f81f4",
+        "size": 7,
+        "mode": 420
+      }
+    ],
+    "objects": {
+      "b6f00f283e24783b68eb63deb8c6f492dfafd29a45a11fa7c2725869596f81f4": "Q0hBTkdFRA=="
+    },
+    "checksum": "224ece5a3add143f4ea8d14cacdbfe6dae22577e2fd59fd9cd370a61f540fce0"
+  }
+}

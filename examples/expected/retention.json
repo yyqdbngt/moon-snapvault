@@ -1,0 +1,19 @@
+{
+  "keep_snapshots": [
+    "delta"
+  ],
+  "required_snapshots": [
+    "base"
+  ],
+  "external_parents": [],
+  "drop_snapshots": [],
+  "reachable_objects": [
+    "3fc4ccfe745870e2c0d99f71f30ff0656c8dedd41cc1d7d3d376b0dbe685e2f3",
+    "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed"
+  ],
+  "collectible_objects": [],
+  "live_bytes": 6,
+  "collectible_bytes": 0,
+  "plan_only": true,
+  "scope": "objects and chain links these snapshots need; no files are deleted"
+}
