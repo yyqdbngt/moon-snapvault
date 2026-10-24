@@ -32,8 +32,23 @@ function warnNonPortable(files) {
   }
 }
 
+// Reading a snapshot is the one step where the input is a file the user named, so a
+// failure here should say which file and why rather than leaking a raw ENOENT.
 function readSnapshot(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    const reason = err.code === 'ENOENT' ? 'does not exist'
+      : err.code === 'EACCES' ? 'cannot be read: permission denied'
+        : 'cannot be read: ' + err.message;
+    throw new Error('Snapshot file ' + reason + ': ' + file);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error('Snapshot file is not valid JSON: ' + file + ' (' + err.message + ')');
+  }
 }
 
 // The chain is whatever the caller names: a delta only knows the checksum of its
@@ -515,15 +530,23 @@ export function restore(snapshotFile, destination, chain = [], paths = []) {
   try {
     fs.mkdirSync(output);
   } catch (err) {
-    if (err.code === 'EEXIST') {
-      throw new Error('The destination already exists: ' + output
-        + '; restore requires a new directory');
-    }
-    throw err;
+    // Both outcomes are about the destination, so both read the same way. A raw
+    // EACCES from Node tells a user nothing about which argument was wrong.
+    const reason = err.code === 'EEXIST'
+      ? 'already exists'
+      : err.code === 'EACCES' || err.code === 'EPERM'
+        ? 'cannot be created: permission denied'
+        : err.code === 'ENOSPC'
+          ? 'cannot be created: no space left on device'
+          : 'cannot be created: ' + err.message;
+    throw new Error('The destination ' + reason + ': ' + output
+      + '; restore requires a new directory that it can write to');
   }
   let modes = 0;
+  let current = null;
   try {
     for (const file of verified.files) {
+      current = file.path;
       const absolute = safeFile(output, file.path);
       const payload = verified.encoding === 'base64'
         ? Buffer.from(file.bytes, 'base64')
@@ -536,8 +559,12 @@ export function restore(snapshotFile, destination, chain = [], paths = []) {
       modes++;
     }
   } catch (err) {
-    // Retain the new partial destination for inspection; no original files are touched.
-    throw new Error('Restore failed; partial destination retained: ' + err.message);
+    // The partial directory is retained for inspection, but "for inspection" is only
+    // actionable if the reader knows where it stopped: files are written in manifest
+    // order, so everything before `file` is complete and `file` itself is not.
+    const at = current === null ? '' : ' at ' + current;
+    throw new Error('Restore failed' + at
+      + '; the partial destination is retained for inspection: ' + err.message);
   }
   return {
     files: verified.files.length,

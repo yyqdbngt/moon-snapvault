@@ -215,6 +215,46 @@ try {
     }
   }
 
+  // Host-side failures must name the thing that is wrong, not leak a raw code. The
+  // disk-full case needs a filesystem it can fill and lives in scripts/fault-probe.mjs;
+  // these three need nothing special, so they run everywhere.
+  {
+    const missingMessage = (() => {
+      try {
+        restore(path.join(base, 'no-such-snapshot.json'), path.join(base, 'x1'));
+        return null;
+      } catch (err) { return err.message; }
+    })();
+    assert.match(missingMessage ?? '', /Snapshot file does not exist/,
+      'a missing snapshot must be named, not reported as ENOENT');
+
+    const brokenPath = path.join(base, 'broken.json');
+    fs.writeFileSync(brokenPath, 'not json at all');
+    const brokenMessage = (() => {
+      try { restore(brokenPath, path.join(base, 'x2')); return null; }
+      catch (err) { return err.message; }
+    })();
+    assert.match(brokenMessage ?? '', /Snapshot file is not valid JSON/,
+      'malformed JSON must be reported as such');
+
+    // A destination that cannot be created is the same class of mistake as one that
+    // already exists, so it reads the same way. chmod does not deny mkdir on Windows.
+    if (process.platform !== 'win32') {
+      const locked = path.join(base, 'locked-parent');
+      fs.mkdirSync(locked);
+      fs.chmodSync(locked, 0o500);
+      const lockedMessage = (() => {
+        try { restore(one, path.join(locked, 'out')); return null; }
+        catch (err) { return err.message; }
+      })();
+      fs.chmodSync(locked, 0o700);
+      assert.match(lockedMessage ?? '', /The destination cannot be created/,
+        'an unwritable parent must be named, not reported as EACCES');
+      assert.match(lockedMessage ?? '', /restore requires a new directory/);
+      assert.equal(fs.existsSync(path.join(locked, 'out')), false);
+    }
+  }
+
   // Concurrent publication. The claim is that a destination is created exclusively,
   // so racing processes produce one snapshot and clear failures rather than a mixed
   // file. That was never exercised: the code comment asserted it and nothing tested
@@ -472,7 +512,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore, named host failures passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

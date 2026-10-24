@@ -28,6 +28,20 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Failure messages, and the partial directory claim
+
+- The claim that a failed restore retains its partial directory had never been tested.
+  Verified against a 2 MiB tmpfs and a 5.33 MiB snapshot: three of four entries survive,
+  the one being written is present and truncated. `scripts/fault-probe.mjs` reproduces
+  it; it needs root, so it is run deliberately and is not in `verify.sh`.
+- A mid-restore failure now names the file it stopped at, because files are written in
+  manifest order and the retained directory is only interpretable if the reader knows
+  where the boundary is.
+- Host-side failures no longer leak raw Node codes for the cases a user actually hits:
+  a missing snapshot says `Snapshot file does not exist: ...`, malformed JSON says it is
+  not valid JSON, and a destination that cannot be created is explained the same way an
+  existing one is. All three are covered by the integration suite on every platform.
+
 ### Concurrent publication
 
 - The claim that a destination is created exclusively was asserted in a code comment

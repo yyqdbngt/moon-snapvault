@@ -23,6 +23,10 @@ operations - and asserts the one property a command-line tool must hold: every
 input produces exactly one JSON object on stdout and exit 0, 1 or 2. A crash, an
 abort, a hang, a stack trace or partial output fails the run. 305 cases pass.
 
+Note that `scripts/fault-probe.mjs` is deliberately outside `verify.sh`: it needs a
+filesystem small enough to fill, which means root or a disk image. Claiming it as part
+of the routine ladder would overstate what a green run covers.
+
 What that does not establish is that a structurally invalid snapshot is always
 *refused* rather than merely answered; several such inputs are answered with a
 `valid: false` report, which is the intended behaviour for `audit` and means a
@@ -37,6 +41,24 @@ and grows with the tree rather than with the product.
 A chain larger than one request is read through `locate` and `extract`, one link at
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
+
+### What a failed restore leaves behind
+
+The documented promise is that a failed write retains the new partial directory for
+inspection. That was untested, so it was verified against a filesystem that is
+genuinely too small - a 2 MiB tmpfs, a 5.33 MiB snapshot - and it holds: three of four
+entries survive, the file being written is present and truncated, the rest are absent.
+
+"For inspection" is only actionable if the reader knows where it stopped, which the
+error did not say. It now does: `Restore failed at f2.bin; the partial destination is
+retained for inspection: ENOSPC: no space left on device, write`. Files are written in
+manifest order, so everything before `f2.bin` is complete and `f2.bin` itself is not.
+
+This probe needs root to mount a small filesystem, so it is `scripts/fault-probe.mjs`,
+run deliberately rather than on every build. The failures that need nothing special -
+a missing snapshot, malformed JSON, a destination that cannot be created - are in the
+integration suite and run on all three platforms. All of them name the cause rather
+than leaking `ENOENT`, `EACCES` or `EEXIST`.
 
 ### Concurrency
 
