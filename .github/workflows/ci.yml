@@ -42,6 +42,7 @@ jobs:
       - run: node scripts/interface.mjs
       - run: node scripts/consumer-smoke.mjs
       - run: node scripts/examples.mjs
+      - run: node scripts/durability.mjs
       - run: node scripts/check.mjs
       - run: python3 -B scripts/reference.py
       - run: python3 -B scripts/followup_reference.py

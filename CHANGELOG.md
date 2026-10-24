@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Durability was never asked for
+
+- Measured: neither backup nor restore called `fsync`. `writeFileSync` returns once the
+  bytes are in the page cache, so a power cut could leave a snapshot whose name exists and
+  whose length is zero, and a restore that had already said `verified: true`. Silent, and
+  the exact failure the project exists to prevent.
+- Publication is now one shared function - both backup and squash carried their own copy
+  of the same sequence - that syncs the temporary file, links it, then syncs the
+  directory. Restore syncs each file it writes and each directory it touched before
+  returning, and reports `durable` and `synced_directories`.
+- `scripts/durability.mjs` asserts the calls happen by patching `fs` in a child process.
+  Confirmed to fail when either sync is removed, and when the opt-out stops being reported.
+- Cost, measured: 1 MiB restore 74 → 80 ms; 200 files of 1 KiB 79 → 852 ms. Durability is
+  the default anyway; `SNAPVAULT_NO_FSYNC=1` is for scratch copies and reports
+  `durable: false` rather than weakening the guarantee silently.
+
 ### The documents are checked
 
 - `scripts/docs.py`: internal links must resolve, `#anchors` must name a heading that

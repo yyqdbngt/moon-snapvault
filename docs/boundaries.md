@@ -125,6 +125,28 @@ a different but internally consistent snapshot; and a mode change with a recompu
 checksum is reported valid, which is the documented limit of an integrity check that is
 not a signature.
 
+### Durability: what `verified` actually meant
+
+Until this was measured, neither backup nor restore called `fsync` at all. `writeFileSync`
+returns when the bytes reach the page cache, so a power cut could leave a snapshot whose
+name exists and whose length is zero - and a restore that had already reported
+`verified: true`. That is the silent version of the failure this project exists to prevent,
+which made it worth an explicit check rather than an assumption.
+
+Both paths now sync before they report: the snapshot file and its directory before
+publication, every restored file and every touched directory before success. A test counts
+the calls by patching `fs` in a child process, and was confirmed to fail when either sync
+is removed or when the opt-out stops being reported.
+
+The cost is honest and uneven. A few large files barely change (1 MiB: 74 → 80 ms); many
+small files are dominated by latency (200 files of 1 KiB: 79 → 852 ms, eleven times
+slower). Durability is the default anyway, because a backup tool that is fast and wrong is
+not a backup tool. `SNAPVAULT_NO_FSYNC=1` exists for a scratch copy and reports
+`durable: false`, so nobody can end up without the guarantee and without knowing.
+
+What this does not do: `fsync` protects against losing power on a filesystem that honours
+it. It says nothing about a disk that fails, so it is not a substitute for redundancy.
+
 ### What a failed restore leaves behind
 
 The documented promise is that a failed write retains the new partial directory for

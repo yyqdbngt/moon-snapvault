@@ -45,6 +45,8 @@ node scripts/consumer-smoke.mjs
 # The examples ship with the package and are the first thing README tells a reader
 # to run, so their answers are pinned rather than assumed.
 node scripts/examples.mjs
+# Backup and restore must sync before claiming success, and the opt-out must say so.
+node scripts/durability.mjs
 node scripts/check.mjs
 python3 -B scripts/reference.py
 python3 -B scripts/followup_reference.py
