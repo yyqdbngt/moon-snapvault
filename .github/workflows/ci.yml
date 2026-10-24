@@ -49,6 +49,7 @@ jobs:
       - run: python3 -B scripts/robustness.py
       - run: python3 -B scripts/mutation_sweep.py
       - run: python3 -B scripts/workflow.py
+      - run: python3 -B scripts/docs.py
       - run: python3 -B scripts/fuzz.py 8
       - run: node scripts/integration.mjs
   # The path rules exist for case-insensitive, Unicode-normalising filesystems, and

@@ -42,6 +42,21 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### The documents are checked too
+
+Prose drifts the same way code does. `scripts/docs.py` checks three kinds of claim that
+nothing was watching: internal links resolve, `#anchors` name a heading that still
+exists, and the counts stated in `README.md` and `PROJECT_STATS.md` both match the source
+and agree with each other. It also requires every shipped script to be mentioned
+somewhere, since a script nobody documents is a script nobody runs.
+
+On its first run it found a real drift: `README.md` claimed 87 test declarations while
+the source had 93. That number had been updated by hand through several releases and had
+fallen three behind, because only `PROJECT_STATS.md` was machine-checked.
+
+Numbers that legitimately vary - timings, peak memory - are deliberately not treated as
+claims. A checker that fails when a machine is slower would be turned off within a week.
+
 ### The workflow itself is checked
 
 CI is the only cross-platform evidence this project has: the macOS and Windows jobs

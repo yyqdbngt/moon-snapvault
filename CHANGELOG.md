@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### The documents are checked
+
+- `scripts/docs.py`: internal links must resolve, `#anchors` must name a heading that
+  exists, and the counts stated in `README.md` and `PROJECT_STATS.md` must match the
+  source and each other. Every shipped script must be mentioned somewhere.
+- Found a real drift on its first run: `README.md` claimed 87 test declarations while the
+  source had 93. That number had been maintained by hand through several releases and had
+  fallen three behind, because only `PROJECT_STATS.md` was machine-checked.
+- Verified with five injected failures: a broken link, a broken anchor, a renamed heading,
+  an undocumented script, and a stale count. Each was reported with the file named.
+- Timings and peak-memory figures are deliberately not treated as claims, since they vary
+  by machine and a checker that fails on a slower host gets switched off.
+
 ### The disk-full probe runs on macOS, and in CI
 
 - The probe needed root for a Linux tmpfs, so it was documented as a deliberate manual
