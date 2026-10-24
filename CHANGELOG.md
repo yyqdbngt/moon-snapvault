@@ -28,6 +28,18 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### The disk-full probe runs on macOS, and in CI
+
+- The probe needed root for a Linux tmpfs, so it was documented as a deliberate manual
+  check and its macOS side never ran. That was wrong twice over: macOS can create and
+  mount a 2 MiB APFS image with `hdiutil` and no privileges at all, and I had not tried.
+- The probe now picks a method per platform - tmpfs on Linux, `hdiutil` on macOS, an
+  explicit skip on Windows - and runs in the macOS CI job on every push. The Linux path
+  stays manual because it really does need root.
+- The claim holds on both: the partial directory is retained, the error names the file it
+  stopped at, and that file is the truncated one. The named file differs (`f0.bin` on
+  APFS, `f2.bin` on tmpfs) only because the volumes fill at different points.
+
 ### The CI workflow is validated, not trusted
 
 - `scripts/workflow.py` parses `ci.yml` and checks the properties that decide whether a

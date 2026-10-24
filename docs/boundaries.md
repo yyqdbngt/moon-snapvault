@@ -122,8 +122,16 @@ error did not say. It now does: `Restore failed at f2.bin; the partial destinati
 retained for inspection: ENOSPC: no space left on device, write`. Files are written in
 manifest order, so everything before `f2.bin` is complete and `f2.bin` itself is not.
 
-This probe needs root to mount a small filesystem, so it is `scripts/fault-probe.mjs`,
-run deliberately rather than on every build. The failures that need nothing special -
+The probe makes a filesystem too small for the snapshot, and how it does that differs by
+platform: Linux needs root for a tmpfs, macOS uses `hdiutil` and needs no privileges at
+all, Windows has neither and the probe says so and exits. It therefore runs in the macOS
+CI job on every push, which is the first time this branch has been covered continuously;
+on Linux it stays a deliberate `sudo -n node scripts/fault-probe.mjs`.
+
+The claim itself turned out to be platform-independent and true on both: the partial
+directory is retained, the error names the file, and that file is the truncated one -
+`f0.bin` on APFS, `f2.bin` on tmpfs, which differ only because the volumes fill at
+different points. The failures that need nothing special -
 a missing snapshot, malformed JSON, a destination that cannot be created - are in the
 integration suite and run on all three platforms. All of them name the cause rather
 than leaking `ENOENT`, `EACCES` or `EEXIST`.
