@@ -1972,5 +1972,334 @@
       "issues/0/path": "b.txt"
     },
     "error": false
+  },
+  {
+    "name": "locate attributes each payload to its link",
+    "request": {
+      "operation": "locate",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c",
+        "stored_digests": [
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+        ]
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+          "stored_digests": [
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "format": 3,
+      "chain_depth": 2,
+      "unresolved": [],
+      "missing_parent": null,
+      "files/0/path": "a.txt",
+      "files/0/link": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+      "files/1/path": "b.txt",
+      "files/1/link": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+    },
+    "error": false
+  },
+  {
+    "name": "locate needs no payloads",
+    "request": {
+      "operation": "locate",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c",
+        "stored_digests": [
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+        ]
+      },
+      "parents": []
+    },
+    "expected": {
+      "chain_depth": 1,
+      "missing_parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+      "files/0/link": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+    },
+    "error": false
+  },
+  {
+    "name": "locate honours a selection",
+    "request": {
+      "operation": "locate",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c",
+        "stored_digests": [
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+        ]
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+          "stored_digests": [
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+          ]
+        }
+      ],
+      "paths": [
+        "b.txt"
+      ]
+    },
+    "expected": {
+      "files/0/path": "b.txt"
+    },
+    "error": false
+  },
+  {
+    "name": "locate refuses a path it cannot find",
+    "request": {
+      "operation": "locate",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c",
+        "stored_digests": [
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+        ]
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+          "stored_digests": [
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+          ]
+        }
+      ],
+      "paths": [
+        "nope"
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "extract returns a verified payload",
+    "request": {
+      "operation": "extract",
+      "snapshot": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "digests": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ],
+      "format": 3
+    },
+    "expected": {
+      "verified": true,
+      "encoding": "base64",
+      "bytes": 3,
+      "objects/ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+    },
+    "error": false
+  },
+  {
+    "name": "extract refuses a payload that fails its digest",
+    "request": {
+      "operation": "extract",
+      "snapshot": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "dGFtcGVyZWQ="
+        },
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "digests": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "extract refuses an object this snapshot does not store",
+    "request": {
+      "operation": "extract",
+      "snapshot": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "digests": [
+        "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "assemble keeps only manifest fields",
+    "request": {
+      "operation": "assemble",
+      "format": 3,
+      "files": [
+        {
+          "path": "a.txt",
+          "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+          "size": 3,
+          "mode": 420,
+          "link": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        },
+        {
+          "path": "b.txt",
+          "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+          "size": 2,
+          "mode": 420,
+          "link": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+        }
+      ]
+    },
+    "expected": {
+      "checksum": "00ec7c4e1840003c752a6f234882320de66a05c59a5326c2cc9131605e267b9f",
+      "format": 3,
+      "files/0/path": "a.txt"
+    },
+    "error": false
+  },
+  {
+    "name": "assemble refuses a manifest create would refuse",
+    "request": {
+      "operation": "assemble",
+      "format": 3,
+      "files": [
+        {
+          "path": "../escape",
+          "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+          "size": 3,
+          "mode": 420
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
   }
 ]

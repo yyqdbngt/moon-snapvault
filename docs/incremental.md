@@ -137,6 +137,41 @@ The delta is 0.02% of the base on disk. It is not cheaper in time: the base is
 re-verified before the delta is written, which is the same work as a full
 backup, and the request carries the new tree and the parent snapshot together.
 
+## Reading a chain that does not fit
+
+`restore` and `squash` need the whole chain in one request, and a chain of a few
+large links does not fit. Two operations let a reader work through it one link at
+a time:
+
+| Operation | Input | Output |
+|---|---|---|
+| `locate` | the tip plus its chain, all **manifest-only** | for each file, the checksum of the link that stores it |
+| `extract` | one link, in full, plus a digest list | those payloads, verified against their digests |
+
+`locate` needs no payloads at all, so its request is a few kilobytes however large
+the chain is. It reports `missing_parent` and `unresolved` rather than raising,
+because the caller has to know which part is absent; a selection behaves as it
+does for `restore`.
+
+`extract` re-hashes each payload and refuses a mismatch, so a reader never writes
+bytes it has not verified. It takes a `format`, which is how a chain that mixes
+formats still yields one encoding for the whole restore.
+
+A third operation, `assemble`, computes the canonical checksum of a manifest so a
+caller that already holds verified payloads can write a self-contained snapshot.
+It normalises each file to the four manifest fields, so the `link` field `locate`
+adds cannot leak into a manifest and change its checksum.
+
+The adapter uses this automatically: when the request would exceed the cap it
+locates, extracts the payloads from the links that hold them (splitting the digest
+list so no request grows past the cap), and only then creates the destination. The
+whole chain is still verified before anything is written. `squash` does the same
+and then audits the assembled snapshot.
+
+Measured on three links with two large ones - 9.8 MB, 8.4 MB and 1.4 MB, 19 MB of
+chain: restore and squash both fail with a single request and both succeed
+piecewise, with the squash checksum identical to the one-request result.
+
 ## Declaring objects instead of sending them
 
 A delta request would otherwise hold the new tree *and* every payload the parent

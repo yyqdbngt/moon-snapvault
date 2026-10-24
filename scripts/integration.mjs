@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {backup, restore, squash, deltaFromDigests} from './filesystem.mjs';
+import {backup, restore, squash, deltaFromDigests, resolveInPieces, squashInPieces, manifestOnly} from './filesystem.mjs';
 import {engine} from './engine.mjs';
 
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'snapvault-integration-'));
@@ -142,6 +142,31 @@ try {
   assert.throws(() => restore(lieFile, path.join(base, 'lie-out'), [two, one]));
   assert.equal(fs.existsSync(path.join(base, 'lie-out')), false);
 
+  // The piecewise paths: locating and extracting per link has to produce exactly
+  // what a single fit-in-one-request restore produces.
+  const chainSnapshots = [read(three), read(two), read(one)];
+  const wholeRestore = engine({operation: 'restore', snapshot: chainSnapshots[0],
+    parents: [chainSnapshots[1], chainSnapshots[2]]});
+  const pieces = resolveInPieces(chainSnapshots[0], [chainSnapshots[1], chainSnapshots[2]]);
+  const asMap = (list) => Object.fromEntries(list.map((f) => [f.path, Buffer.from(f.bytes, 'base64').toString('hex')]));
+  assert.deepEqual(asMap(pieces.files), asMap(wholeRestore.files));
+  assert.equal(pieces.piecewise, true);
+  assert.equal(pieces.chain_depth, 3);
+  // A selection works through the piecewise path too.
+  const subset = resolveInPieces(chainSnapshots[0], [chainSnapshots[1], chainSnapshots[2]], ['nested']);
+  assert.deepEqual(subset.files.map((f) => f.path).sort(), ['nested/a.bin', 'nested/big.bin']);
+  // A link that is not supplied is reported, not written around.
+  assert.throws(() => resolveInPieces(chainSnapshots[0], [chainSnapshots[2]]), /missing a parent/);
+
+  const piecewiseSquash = squashInPieces(chainSnapshots[0], [chainSnapshots[1], chainSnapshots[2]], 3);
+  assert.equal(piecewiseSquash.audited, true);
+  const directSquash = engine({operation: 'squash', snapshot: chainSnapshots[0],
+    parents: [chainSnapshots[1], chainSnapshots[2]], format: 3});
+  assert.equal(piecewiseSquash.snapshot.checksum, directSquash.snapshot.checksum,
+    'the piecewise squash must equal the one-request squash');
+  assert.deepEqual(piecewiseSquash.snapshot.objects, directSquash.snapshot.objects);
+  assert.deepEqual(manifestOnly(chainSnapshots[1]).files, chainSnapshots[1].files);
+
   // Squashing compacts the whole chain into one self-contained file that no
   // longer needs its parents, and selects on the way out.
   const squashedFile = path.join(base, 'squashed.json');
@@ -216,7 +241,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

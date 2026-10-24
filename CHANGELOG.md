@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Reading a chain that is larger than one request
+
+- `locate` answers which link stores each payload using manifests only, so a
+  request that carries a whole chain as manifests stays small.
+- `extract` returns the payloads of one link, re-hashing each against its digest
+  and re-encoding to the caller's `format`.
+- `assemble` computes the canonical checksum of a manifest without payloads, and
+  keeps only the four manifest fields so extra ones cannot change the checksum.
+- Adapter: `restore` and `squash` fall back to those operations when the chain
+  would not fit. Both verify the whole chain before creating anything. A 19 MB
+  chain of three links restored and squashed successfully where a single request
+  refused; the piecewise squash checksum equals the one-request result.
+- Fixed: the declared-objects delta path stripped only the parent's payloads, so a
+  third link in the chain pushed the request over the cap. Every link now travels
+  as a manifest with its digests declared.
+
 ### Deltas over a large base
 
 - `create` accepts `known_objects`, a list of digests the chain already stores,

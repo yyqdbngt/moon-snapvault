@@ -73,7 +73,7 @@ node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 68 MoonBit test declarations and 55 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 80 MoonBit test declarations and 64 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
@@ -102,6 +102,10 @@ node scripts/filesystem.mjs restore current.json DEST previous.json        # nee
 node scripts/filesystem.mjs restore current.json DEST --path docs          # subset only
 node scripts/filesystem.mjs squash  current.json compact.json previous.json # fold the chain
 ```
+
+A chain too large for one request is read through `locate` and `extract`, one link
+at a time; the adapter does that automatically, so restore and squash work on any
+chain size that fits in memory.
 
 `squash` folds a chain into one self-contained snapshot, keeping each reachable
 object once and dropping unreferenced ones; squashing to format 2 produces a file

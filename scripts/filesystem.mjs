@@ -35,6 +35,19 @@ function readChain(files) {
   return files.filter(Boolean).map(readSnapshot);
 }
 
+// The parts of a snapshot a reader needs in order to resolve digests: no payloads.
+export function manifestOnly(snapshot) {
+  return {
+    version: snapshot.version,
+    parent: snapshot.parent ?? null,
+    files: snapshot.files,
+    checksum: snapshot.checksum,
+    // Which payloads this link holds, by name rather than as a fake `objects`
+    // map: `locate` needs the digests, and nothing should mistake these for bytes.
+    stored_digests: Object.keys(snapshot.objects || {}),
+  };
+}
+
 // A delta normally carries the new tree *and* the parent it reuses, which is what
 // puts a ceiling on how large a base one request can cover. The parent's payloads
 // are the expensive half, and the core needs only the digests that already exist,
@@ -50,14 +63,15 @@ export function deltaFromDigests(files, parentSnapshot, parents, sourceBytes = 0
     ...Object.keys(parentSnapshot.objects || {}),
     ...parents.flatMap((item) => Object.keys(item.objects || {})),
   ])];
-  const slim = {
-    version: parentSnapshot.version,
-    parent: parentSnapshot.parent ?? null,
-    files: parentSnapshot.files,
-    checksum: parentSnapshot.checksum,
-  };
   const text = JSON.stringify({
-    operation: 'create', format: 3, files, previous: slim, parents, known_objects: known,
+    operation: 'create',
+    format: 3,
+    files,
+    previous: manifestOnly(parentSnapshot),
+    // The rest of the chain is just as expensive as the parent, and locating a
+    // digest needs no payload either, so every link travels as a manifest.
+    parents: parents.map(manifestOnly),
+    known_objects: known,
   });
   return engineText(checkRequestSize(text, {
     source: sourceBytes,
@@ -144,13 +158,103 @@ export function portablePaths(files) {
 
 // Compacts a chain into one self-contained snapshot file. Only reachable objects
 // survive, so this is also the way to recover the space deltas leave behind.
+// Compaction of a chain too large for one request: locate the payloads, extract
+// them per link (already verified against their digests), then ask the core for
+// the canonical checksum of the assembled manifest.
+export function squashInPieces(snapshot, parents, format = 3) {
+  const located = send({
+    operation: 'locate', snapshot: manifestOnly(snapshot), parents: parents.map(manifestOnly),
+  }, {manifests: [snapshot, ...parents].reduce(
+    (sum, item) => sum + JSON.stringify(manifestOnly(item)).length, 0)});
+  if (located.missing_parent !== null) {
+    throw new Error('the chain is missing a parent snapshot: ' + located.missing_parent);
+  }
+  if (located.unresolved.length) {
+    throw new Error('the chain does not store ' + located.unresolved.length + ' required object(s)');
+  }
+  const digests = [...new Set(located.files.map((file) => file.digest))];
+  const byLink = new Map();
+  for (const file of located.files) {
+    if (!byLink.has(file.link)) byLink.set(file.link, []);
+    byLink.get(file.link).push(file.digest);
+  }
+  const objects = {};
+  let bytes = 0;
+  for (const [link, wanted] of byLink) {
+    const holder = [snapshot, ...parents].find((item) => item.checksum === link);
+    if (!holder) throw new Error('the chain is missing the snapshot ' + link);
+    const overhead = JSON.stringify({
+      operation: 'extract', snapshot: holder, digests: [], format,
+    }).length;
+    const budget = Math.max(REQUEST_LIMIT - overhead - 1024, 4096);
+    let batch = [];
+    const flush = () => {
+      if (!batch.length) return;
+      const got = engineText(JSON.stringify({
+        operation: 'extract', snapshot: holder, digests: batch, format,
+      }));
+      Object.assign(objects, got.objects);
+      bytes += got.bytes;
+      batch = [];
+    };
+    let used = 0;
+    for (const digest of [...new Set(wanted)]) {
+      if (used + 67 > budget) { flush(); used = 0; }
+      batch.push(digest);
+      used += 67;
+    }
+    flush();
+  }
+  if (Object.keys(objects).length !== digests.length) {
+    throw new Error('only ' + Object.keys(objects).length + ' of ' + digests.length + ' payloads resolved');
+  }
+  // The manifest, without the `link` field `locate` adds for the caller's use.
+  const manifestFiles = located.files.map(({path, digest, size, mode}) => ({path, digest, size, mode}));
+  const assembled = send({operation: 'assemble', files: manifestFiles, format}, {
+    files: located.files.reduce((sum, file) => sum + 96, 0),
+  });
+  const parent = format >= 3 ? null : undefined;
+  const built = {
+    version: assembled.format,
+    ...(format >= 3 ? {parent} : {}),
+    files: assembled.files,
+    objects,
+    checksum: assembled.checksum,
+  };
+  // The assembled snapshot is audited when it fits, which re-checks every payload
+  // against its digest and every file against its size.
+  const text = JSON.stringify(built);
+  if (text.length <= REQUEST_LIMIT) {
+    const report = engineText(JSON.stringify({operation: 'audit', snapshot: built}));
+    if (!report.valid) throw new Error('the assembled snapshot failed its audit');
+    return {
+      snapshot: built,
+      audited: true,
+      statistics: {
+        format, chain_depth: located.chain_depth, files: report.files,
+        objects: Object.keys(objects).length, bytes,
+      },
+    };
+  }
+  // Larger than one request, so the audit has to come from reading it back later.
+  return {
+    snapshot: built,
+    audited: false,
+    statistics: {
+      format, chain_depth: located.chain_depth, files: built.files.length,
+      objects: Object.keys(objects).length, bytes,
+    },
+  };
+}
+
 export function squash(snapshotFile, destination, chain = [], format = 3) {
   const snapshot = readSnapshot(snapshotFile);
   const parents = readChain(chain);
-  const result = send({operation: 'squash', snapshot, parents, format}, {
-    snapshot: JSON.stringify(snapshot).length,
-    chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
-  });
+  const request = {operation: 'squash', snapshot, parents, format};
+  const text = JSON.stringify(request);
+  const result = text.length <= REQUEST_LIMIT
+    ? engineText(text)
+    : squashInPieces(snapshot, parents, format);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
   const tmp = output + '.' + randomUUID() + '.tmp';
@@ -158,21 +262,113 @@ export function squash(snapshotFile, destination, chain = [], format = 3) {
     fs.writeFileSync(tmp, JSON.stringify(result.snapshot), {flag: 'wx'});
     fs.linkSync(tmp, output);
   } finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
+  const statistics = result.statistics ?? {
+    format,
+    chain_depth: result.chain_depth ?? null,
+    files: result.snapshot.files.length,
+    objects: result.objects,
+    bytes: null,
+  };
   return {
-    ...result.statistics,
+    ...statistics,
+    audited: result.audited ?? true,
     snapshot_bytes: fs.statSync(output).size,
   };
+}
+
+// Resolves a chain that is too large for one request: `locate` answers which link
+// stores each payload from manifests alone, then one `extract` per link returns
+// and verifies the bytes. The result is shaped like a `restore` response so the
+// writing code does not care which path produced it.
+export function resolveInPieces(snapshot, parents, paths = []) {
+  const located = send({
+    operation: 'locate',
+    snapshot: manifestOnly(snapshot),
+    parents: parents.map(manifestOnly),
+    paths: paths.length ? paths : undefined,
+  }, {
+    manifests: [snapshot, ...parents].reduce(
+      (sum, item) => sum + JSON.stringify(manifestOnly(item)).length, 0),
+  });
+  if (located.missing_parent !== null) {
+    throw new Error('the chain is missing a parent snapshot: ' + located.missing_parent);
+  }
+  if (located.unresolved.length) {
+    throw new Error('the chain does not store ' + located.unresolved.length + ' required object(s)');
+  }
+  // Only the links that actually hold a selected payload are read.
+  const filesByLink = new Map();
+  for (const file of located.files) {
+    if (!filesByLink.has(file.link)) filesByLink.set(file.link, []);
+    filesByLink.get(file.link).push(file.digest);
+  }
+  const payloads = new Map();
+  for (const [link, wanted] of filesByLink) {
+    const holder = [snapshot, ...parents].find((item) => item.checksum === link);
+    if (!holder) throw new Error('the chain is missing the snapshot ' + link);
+    // Split the digest list so that no request approaches the cap.
+    const overhead = JSON.stringify({operation: 'extract', snapshot: holder, digests: []}).length;
+    const budget = Math.max(REQUEST_LIMIT - overhead - 1024, 4096);
+    let batch = [];
+    const flush = () => {
+      if (!batch.length) return;
+      const got = engineText(JSON.stringify({
+        operation: 'extract', snapshot: holder, digests: batch, format: located.format,
+      }));
+      for (const [digest, payload] of Object.entries(got.objects)) payloads.set(digest, payload);
+      batch = [];
+    };
+    let used = 0;
+    for (const digest of wanted) {
+      // 67 bytes covers a 64-character digest plus quotes and a comma.
+      if (used + 67 > budget) { flush(); used = 0; }
+      batch.push(digest);
+      used += 67;
+    }
+    flush();
+  }
+  const files = located.files.map((file) => ({
+    path: file.path,
+    digest: file.digest,
+    size: file.size,
+    mode: file.mode,
+    bytes: payloads.get(file.digest),
+  }));
+  for (const file of files) {
+    if (file.bytes === undefined) throw new Error('no payload resolved for ' + file.path);
+  }
+  return {
+    files,
+    format: located.format,
+    encoding: located.encoding,
+    chain_depth: located.chain_depth,
+    selected: files.length,
+    total_files: files.length,
+    verified: true,
+    piecewise: true,
+  };
+}
+
+// The whole chain is verified before the destination exists, on both paths.
+function resolveRestore(snapshot, parents, paths) {
+  const request = {
+    operation: 'restore', snapshot, parents, paths: paths.length ? paths : undefined,
+  };
+  const text = JSON.stringify(request);
+  if (text.length <= REQUEST_LIMIT) {
+    return engineText(checkRequestSize(text, {
+      snapshot: JSON.stringify(snapshot).length,
+      chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
+    }));
+  }
+  return resolveInPieces(snapshot, parents, paths);
 }
 
 export function restore(snapshotFile, destination, chain = [], paths = []) {
   // Verify the whole chain before creating the destination.
   const snapshot = readSnapshot(snapshotFile);
   const parents = readChain(chain);
-  const requested = paths.length ? paths : undefined;
-  const verified = send({operation: 'restore', snapshot, parents, paths: requested}, {
-    snapshot: JSON.stringify(snapshot).length,
-    chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
-  });
+  const verified = resolveRestore(snapshot, parents, paths);
   portablePaths(verified.files);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
@@ -198,6 +394,7 @@ export function restore(snapshotFile, destination, chain = [], paths = []) {
   return {
     files: verified.files.length,
     total_files: verified.total_files,
+    piecewise: verified.piecewise === true,
     verified: true,
     encoding: verified.encoding,
     format: verified.format,

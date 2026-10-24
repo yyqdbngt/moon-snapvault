@@ -35,6 +35,19 @@ The core keeps the payload in its stored encoding; `scripts/filesystem.mjs` turn
 snapshots. The format and its compatibility rules are described in
 [snapshot format](snapshot-format.md).
 
+## Reading a chain in pieces
+
+| Request | Result |
+|---|---|
+| `{"operation": "locate", "snapshot": <manifest-only>, "parents": [...]}` | `files[i].link` names the snapshot holding that payload |
+| `{"operation": "locate", ..., "paths": ["docs"]}` | the same, limited to the selection |
+| `{"operation": "extract", "snapshot": <one link>, "digests": [...]}` | those payloads, `verified: true` |
+| `{"operation": "extract", ..., "format": 2}` | the same payloads re-encoded |
+| `{"operation": "assemble", "files": [...], "format": 3}` | the canonical `checksum` for a manifest |
+
+`locate` reports `missing_parent` and `unresolved` instead of raising; `extract`
+raises on a digest it does not hold or one whose payload does not match.
+
 ## Retention plan fields
 
 | Field | Meaning |

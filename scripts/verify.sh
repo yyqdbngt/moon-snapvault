@@ -16,6 +16,10 @@ export PATH
 
 echo "moon: $(moon version | head -1)"
 
+# Formatting is checked first: it is the cheapest failure and it does not depend on
+# which target was built last, so it should not wait behind four test runs.
+moon fmt --check >/dev/null
+
 for target in js wasm wasm-gc; do
   printf '%s: ' "$target"
   moon test --target "$target" | grep '^Total tests'
@@ -41,5 +45,4 @@ python3 -B scripts/delta_reference.py
 # default is small enough for CI and still exercises every seeded path.
 python3 -B scripts/fuzz.py "${FUZZ_ITERATIONS:-6}"
 node scripts/integration.mjs
-moon fmt --check >/dev/null
 echo "verify: ok"

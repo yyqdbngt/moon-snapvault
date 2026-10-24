@@ -704,6 +704,16 @@ fn optional_format(request : Value) -> Int32? raise {
 }
 
 ///|
+/// `digests` names the payloads `extract` should return.
+fn request_digests(request : Value) -> Array[String] raise {
+  match get(request, "digests") {
+    Null => []
+    Array(items) => items.map(item => str(item))
+    _ => raise InputError("digests must be an array of digests")
+  }
+}
+
+///|
 /// `known_objects` lists digests the chain already holds, so a delta does not have
 /// to carry the payloads it reuses.
 fn request_known_objects(request : Value) -> Array[String] raise {
@@ -937,6 +947,26 @@ pub fn run(request : Value) -> Value raise {
         get(request, "snapshot"),
         request_parents(request),
         request_selection(request),
+      )
+    "assemble" =>
+      assemble_with(
+        arr(get(request, "files")),
+        match optional_format(request) {
+          None => 2
+          Some(value) => value
+        },
+      )
+    "locate" =>
+      locate_with(
+        get(request, "snapshot"),
+        request_parents(request),
+        request_selection(request),
+      )
+    "extract" =>
+      extract_with(
+        get(request, "snapshot"),
+        request_digests(request),
+        optional_format(request),
       )
     "squash" =>
       squash_with(

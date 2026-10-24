@@ -17,6 +17,10 @@ mutations listed in [incremental snapshots](incremental.md), but it is not a
 proof and not a substitute for fuzzing the JSON parser itself; malformed JSON past
 the parser's own errors is out of scope.
 
+A chain larger than one request is read through `locate` and `extract`, one link at
+a time. That keeps restores possible, but the payloads are still held in memory
+before anything is written, so a restore needs room for the whole tree.
+
 A delta may be built from a manifest-only parent plus a `known_objects` digest
 list, which is what keeps a large base inside one request. The core then cannot
 verify the base and says so with `base_verified: false`; the claim is checked when

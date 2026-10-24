@@ -23,18 +23,6 @@ fn slim_files() -> Array[Value] {
 }
 
 ///|
-/// The same snapshot with its payloads removed, which is what a caller sends when
-/// the request would otherwise be too large.
-fn manifest_only(snapshot : Value) -> Value {
-  record([
-    ("version", get(snapshot, "version")),
-    ("parent", get(snapshot, "parent")),
-    ("files", get(snapshot, "files")),
-    ("checksum", get(snapshot, "checksum")),
-  ])
-}
-
-///|
 fn digests_of(snapshot : Value) -> Array[String] raise {
   obj(get(snapshot, "objects")).keys().collect()
 }

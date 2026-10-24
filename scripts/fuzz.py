@@ -474,6 +474,63 @@ def run_iteration(rng, index):
           and selection['total_files'] == len(changed_paths),
           f"{selection['selected']}/{len(expected_paths)} {selection['total_files']}/{len(changed_paths)}")
 
+    # --- locate and extract, which is how a chain too large for one request is
+    # read. It has to agree with the one-request restore, object by object.
+    if changed:
+        chain_all = walk(delta, [base])
+        manifests = []
+        for link in chain_all:
+            manifests.append({k: link[k] for k in ('version', 'files', 'checksum')
+                              if k in link} | {'parent': link.get('parent'),
+                                               'stored_digests': sorted(link['objects'])})
+        located, _ = call({'operation': 'locate', 'snapshot': manifests[0],
+                           'parents': manifests[1:]}, label='locate')
+        check(tag + ' locate/depth', located['chain_depth'] == len(chain_all),
+              f"{located['chain_depth']} vs {len(chain_all)}")
+        check(tag + ' locate/no-gap', located['missing_parent'] is None, str(located['missing_parent']))
+        check(tag + ' locate/all-resolved', located['unresolved'] == [],
+              str(located['unresolved']))
+        # Every file has to be attributed to the link that really stores it.
+        expected_home = {}
+        for link in chain_all:
+            for digest in link['objects']:
+                expected_home.setdefault(digest, link['checksum'])
+        for entry in located['files']:
+            check(tag + ' locate/home', entry['link'] == expected_home[entry['digest']],
+                  f"{entry['path']} -> {entry['link'][:8]} not {expected_home[entry['digest']][:8]}")
+        # Extract per link and rebuild the file payloads independently.
+        rebuilt = {}
+        by_link = {}
+        for entry in located['files']:
+            by_link.setdefault(entry['link'], []).append(entry['digest'])
+        for link in chain_all:
+            wanted = by_link.get(link['checksum'])
+            if not wanted:
+                continue
+            got, _ = call({'operation': 'extract', 'snapshot': link, 'digests': wanted,
+                           'format': located['format']}, label='extract')
+            check(tag + ' extract/verified', got['verified'] is True)
+            # `extract` was asked for the locate format, so decode accordingly.
+            for digest, payload in got['objects'].items():
+                if got['encoding'] == 'base64':
+                    rebuilt[digest] = base64.b64decode(payload, validate=True)
+                else:
+                    rebuilt[digest] = bytes(payload)
+        direct, _ = call({'operation': 'restore', 'snapshot': delta, 'parents': [base]},
+                         label='restore-direct')
+        direct_bytes = {f['digest']: base64.b64decode(f['bytes']) for f in direct['files']}
+        check(tag + ' extract/matches-restore', rebuilt == direct_bytes,
+              'the piecewise payloads differ from a one-request restore')
+        # And the assembled checksum has to match a one-request squash.
+        manifest_files = [{k: e[k] for k in ('path', 'digest', 'size', 'mode')}
+                          for e in located['files']]
+        assembled, _ = call({'operation': 'assemble', 'files': manifest_files,
+                             'format': 3}, label='assemble')
+        squashed_direct, _ = call({'operation': 'squash', 'snapshot': delta,
+                                   'parents': [base], 'format': 3}, label='squash-direct')
+        check(tag + ' assemble/checksum', assembled['checksum'] == squashed_direct['snapshot']['checksum'],
+              f"{assembled['checksum'][:8]} vs {squashed_direct['snapshot']['checksum'][:8]}")
+
     # --- squash -------------------------------------------------------------
     squashed_doc, _ = call({'operation': 'squash', 'snapshot': delta, 'parents': [base]},
                           label='squash')
