@@ -141,13 +141,20 @@ regression during testing; ten percent of noise would have caught neither.
 
 Two limits are stated rather than hidden.
 
-The baseline is recorded on the CI runner, not on the author's machine, because the runner is
-where the gate actually runs and the two differ by nearly a factor of two: the same 1 MiB
-backup takes 190 ms there and 343 ms on the workstation used for development. A baseline
-taken from the faster machine would make the threshold twice as tight as intended on the
-slower one, and vice versa. The factor of two absorbs the difference - the workstation sits
-at 1.8x - which is workable but is the reason the threshold cannot be tightened much further
-without making the check machine-specific. And the figures in `README.md` are copied by hand from a measurement, so
+Baselines are recorded per platform, because the difference between them is larger than the
+threshold: a 1 MiB backup takes 134 ms on macOS and 190 ms on the Linux runner, and 8 MiB
+takes 320 ms against 750 ms. One shared baseline would have been wrong by a factor of two on
+one of the platforms before any regression occurred.
+
+Within a platform the baseline is the CI runner, not a workstation, because the runner is
+where the gate actually runs and the two still differ by nearly a factor of two - the same
+Linux backup is 190 ms on the runner and 343 ms on the development machine. That difference
+is what the factor of two absorbs, and it is why the threshold cannot be tightened much
+further without making the check machine-specific.
+
+When a platform has no baseline, the check measures and prints its numbers rather than
+skipping silently, so the figures needed to record one appear in that platform's CI log. The
+absence of a baseline is not a regression, so it exits 0. And the figures in `README.md` are copied by hand from a measurement, so
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 

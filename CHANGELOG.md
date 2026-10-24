@@ -37,13 +37,15 @@ resolves the published 0.2.0 until a release is published.
 - `scripts/perf-check.mjs` compares backup and restore at 1 MiB and 8 MiB against a recorded
   baseline and fails at a factor of two, which distinguishes a real regression from scheduler
   noise. Verified by adding a per-file delay: 331 -> 741 ms and 1287 -> 4455 ms were reported.
-- The baseline is recorded on the CI runner rather than the development workstation, since
-  the same backup takes 190 ms there and 343 ms here. A baseline from the faster machine
-  would make the threshold twice as tight as intended on the slower one. The factor of two
-  absorbs that - the workstation sits at 1.8x - which is why the threshold cannot be
-  tightened much further without making the check machine-specific.
-- The baseline is per platform; the check skips with a message elsewhere rather than failing
-  for a reason that is not a regression. `README.md` prose still has to be updated by hand,
+- Baselines are per platform, because the platforms differ by more than the threshold: 1 MiB
+  backs up in 134 ms on macOS and 190 ms on the Linux runner, 8 MiB in 320 ms against 750 ms.
+  A shared baseline would have been wrong by a factor of two on one of them before any
+  regression happened. The check now runs on macOS too, not only on Linux.
+- Within a platform the baseline is the CI runner rather than a workstation, since the same
+  Linux backup is 190 ms there and 343 ms here. The factor of two absorbs that, which is why
+  the threshold cannot be tightened much further without making the check machine-specific.
+- A platform with no baseline gets its numbers measured and printed rather than a silent skip,
+  so they appear in that platform's CI log. `README.md` prose still has to be updated by hand,
   and the script says so when it fails.
 
 ### Coverage, third pass: the remainder is defensive

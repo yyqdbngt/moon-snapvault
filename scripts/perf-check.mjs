@@ -99,15 +99,27 @@ try {
 
 if (WRITE) {
   fs.mkdirSync(path.dirname(baselinePath), {recursive: true});
+  const existing = fs.existsSync(baselinePath)
+    ? JSON.parse(fs.readFileSync(baselinePath, 'utf8'))
+    : {};
+  // Keep the other platforms: recording Linux must not discard the macOS numbers.
+  const platforms = {...(existing.platforms ?? {})};
+  // Carry an older single-platform file forward, whichever platform it happened to be.
+  // Requiring it to match the current one silently dropped the other platform's numbers.
+  if (existing.platform && existing.milliseconds && !platforms[existing.platform]) {
+    platforms[existing.platform] = existing.milliseconds;
+  }
+  platforms[process.platform] = measured;
   fs.writeFileSync(baselinePath, JSON.stringify({
-    note: 'Fastest of three runs, milliseconds, on this host. The check fails at a factor '
+    note: 'Fastest of three runs, milliseconds, per platform. The check fails at a factor '
       + `of ${FACTOR}, not at a percentage, because that is the difference between a real `
-      + 'regression and scheduler noise. Re-record with `node scripts/perf-check.mjs --write` '
-      + 'after a deliberate change, and update the figures in README.md to match.',
-    platform: process.platform,
-    milliseconds: measured,
+      + 'regression and scheduler noise. Record on the CI runner for the platform, not on a '
+      + 'workstation: the two differ by up to a factor of two, which the factor of two then '
+      + 'has to absorb. Re-record with `node scripts/perf-check.mjs --write` after a '
+      + 'deliberate change, and update the figures in README.md to match.',
+    platforms,
   }, null, 2) + '\n');
-  console.log('Perf: recorded ' + Object.entries(measured)
+  console.log('Perf: recorded ' + process.platform + ' - ' + Object.entries(measured)
     .map(([name, ms]) => `${name} ${ms} ms`).join(', '));
   process.exit(0);
 }
@@ -117,16 +129,24 @@ if (!fs.existsSync(baselinePath)) {
 }
 const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
 
-if (baseline.platform !== process.platform) {
-  // Timings are not comparable across operating systems, and pretending they are would make
-  // this check fail on every other platform for a reason that is not a regression.
-  console.log(`Perf: skipped - the baseline was recorded on ${baseline.platform}, this is `
-    + `${process.platform}; timings are not comparable across them`);
+// One baseline per platform. Timings are not comparable across operating systems - a 1 MiB
+// backup takes 134 ms on macOS and 190 ms on the Linux runner - and a check that fails for a
+// reason that is not a regression gets deleted.
+const recorded = baseline.platforms?.[process.platform]
+  ?? (baseline.platform === process.platform ? baseline.milliseconds : null);
+
+if (!recorded) {
+  // Measure anyway and print, so the numbers needed to record a baseline appear in the CI
+  // log of whichever job runs on that platform. Failing here would be wrong: the absence of
+  // a baseline is not a regression.
+  console.log('Perf: no baseline for ' + process.platform + ', measured '
+    + Object.entries(measured).map(([name, ms]) => `${name} ${ms} ms`).join(', '));
+  console.log('  record it with `node scripts/perf-check.mjs --write` on this platform');
   process.exit(0);
 }
 
 const problems = [];
-for (const [name, before] of Object.entries(baseline.milliseconds)) {
+for (const [name, before] of Object.entries(recorded)) {
   const now = measured[name];
   if (now === undefined) {
     problems.push(`${name}: in the baseline but not measured now`);
@@ -142,6 +162,6 @@ if (problems.length) {
   console.error('perf: if this is deliberate, update README.md and re-record with --write');
   process.exit(1);
 }
-console.log('Perf: ' + Object.entries(measured)
+console.log('Perf: ' + process.platform + ' - ' + Object.entries(measured)
   .map(([name, ms]) => `${name} ${ms} ms`).join(', ')
   + ` (no case is ${FACTOR}x slower than the baseline)`);
