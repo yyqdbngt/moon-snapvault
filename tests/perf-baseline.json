@@ -8,10 +8,10 @@
       "restore 8 MiB": 630
     },
     "darwin": {
-      "backup 1 MiB": 134,
-      "restore 1 MiB": 127,
-      "backup 8 MiB": 320,
-      "restore 8 MiB": 298
+      "backup 1 MiB": 140,
+      "restore 1 MiB": 130,
+      "backup 8 MiB": 500,
+      "restore 8 MiB": 400
     }
   }
 }
