@@ -17,6 +17,13 @@ mutations listed in [incremental snapshots](incremental.md), but it is not a
 proof and not a substitute for fuzzing the JSON parser itself; malformed JSON past
 the parser's own errors is out of scope.
 
+`retention` never plans to delete a snapshot that a kept snapshot's chain names:
+the link is promoted into `required_snapshots` instead, because its manifest is
+what makes the kept snapshot readable. A link supplied only through `parents`,
+with no identity in the request, is listed under `external_parents` so the caller
+knows a file it cannot name still has to exist. Genuinely retiring a parent means
+`squash`ing its child first.
+
 `squash` folds a chain into one self-contained snapshot and drops objects no file
 references; it is the only way this project frees space, and `retention` still
 only plans. `restore` takes an optional `paths` selection that must match at

@@ -966,15 +966,18 @@
       "keep_snapshots": [
         "delta"
       ],
-      "drop_snapshots": [
+      "required_snapshots": [
         "base"
       ],
+      "external_parents": [],
+      "drop_snapshots": [],
       "reachable_objects": [
         "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
       ],
       "collectible_objects": [],
       "live_bytes": 5,
+      "collectible_bytes": 0,
       "plan_only": true
     },
     "error": false
@@ -1498,5 +1501,245 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "retention promotes a parent a kept snapshot needs",
+    "request": {
+      "operation": "retention",
+      "snapshots": [
+        {
+          "id": "base",
+          "snapshot": {
+            "version": 3,
+            "parent": null,
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+            },
+            "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+          }
+        },
+        {
+          "id": "delta",
+          "snapshot": {
+            "version": 3,
+            "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              },
+              {
+                "path": "b.txt",
+                "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+                "size": 2,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+            },
+            "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+          },
+          "parents": [
+            {
+              "version": 3,
+              "parent": null,
+              "files": [
+                {
+                  "path": "a.txt",
+                  "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                  "size": 3,
+                  "mode": 420
+                }
+              ],
+              "objects": {
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+              },
+              "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+            }
+          ]
+        }
+      ],
+      "keep": [
+        "delta"
+      ]
+    },
+    "expected": {
+      "keep_snapshots": [
+        "delta"
+      ],
+      "required_snapshots": [
+        "base"
+      ],
+      "drop_snapshots": [],
+      "collectible_bytes": 0
+    },
+    "error": false
+  },
+  {
+    "name": "retention may drop a child freely",
+    "request": {
+      "operation": "retention",
+      "snapshots": [
+        {
+          "id": "base",
+          "snapshot": {
+            "version": 3,
+            "parent": null,
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+            },
+            "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+          }
+        },
+        {
+          "id": "delta",
+          "snapshot": {
+            "version": 3,
+            "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              },
+              {
+                "path": "b.txt",
+                "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+                "size": 2,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+            },
+            "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+          },
+          "parents": [
+            {
+              "version": 3,
+              "parent": null,
+              "files": [
+                {
+                  "path": "a.txt",
+                  "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                  "size": 3,
+                  "mode": 420
+                }
+              ],
+              "objects": {
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+              },
+              "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+            }
+          ]
+        }
+      ],
+      "keep": [
+        "base"
+      ]
+    },
+    "expected": {
+      "keep_snapshots": [
+        "base"
+      ],
+      "required_snapshots": [],
+      "drop_snapshots": [
+        "delta"
+      ],
+      "reachable_objects": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ],
+      "collectible_objects": [
+        "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
+      ],
+      "live_bytes": 3,
+      "collectible_bytes": 2
+    },
+    "error": false
+  },
+  {
+    "name": "retention reports a chain link it cannot name",
+    "request": {
+      "operation": "retention",
+      "snapshots": [
+        {
+          "id": "delta",
+          "snapshot": {
+            "version": 3,
+            "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+            "files": [
+              {
+                "path": "a.txt",
+                "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "size": 3,
+                "mode": 420
+              },
+              {
+                "path": "b.txt",
+                "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+                "size": 2,
+                "mode": 420
+              }
+            ],
+            "objects": {
+              "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+            },
+            "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+          },
+          "parents": [
+            {
+              "version": 3,
+              "parent": null,
+              "files": [
+                {
+                  "path": "a.txt",
+                  "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                  "size": 3,
+                  "mode": 420
+                }
+              ],
+              "objects": {
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+              },
+              "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+            }
+          ]
+        }
+      ],
+      "keep": [
+        "delta"
+      ]
+    },
+    "expected": {
+      "keep_snapshots": [
+        "delta"
+      ],
+      "required_snapshots": [],
+      "drop_snapshots": [],
+      "external_parents": [
+        "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      ]
+    },
+    "error": false
   }
 ]

@@ -35,6 +35,22 @@ The core keeps the payload in its stored encoding; `scripts/filesystem.mjs` turn
 snapshots. The format and its compatibility rules are described in
 [snapshot format](snapshot-format.md).
 
+## Retention plan fields
+
+| Field | Meaning |
+|---|---|
+| `keep_snapshots` | the identities the request asked to keep |
+| `required_snapshots` | identities promoted because a kept snapshot's chain names them |
+| `external_parents` | chain links a kept snapshot needs that the request did not list |
+| `drop_snapshots` | identities that are neither kept nor required |
+| `reachable_objects` | objects referenced by any surviving snapshot |
+| `collectible_objects` | objects no surviving snapshot references |
+
+Keeping a delta keeps its parent: deleting the parent leaves the delta's manifest
+pointing at a checksum nothing provides, and `restore` then fails even though
+every object still exists. The plan promotes the parent rather than proposing that
+deletion, and `squash` is how a chain is genuinely shortened.
+
 ## Incremental snapshots
 
 `create` with a `previous` snapshot writes a format 3 delta that stores only the

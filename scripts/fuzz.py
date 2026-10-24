@@ -456,11 +456,19 @@ def run_iteration(rng, index):
     ]})
     if not keep:
         check(tag + ' retention/empty', False, 'random choice produced no ids')
-    # Reachability comes from the kept snapshots only; dropped ones contribute
-    # nothing, and every object either snapshot stores is a collection candidate.
+    # Reachability and survival, derived independently: a kept snapshot drags in
+    # every chain link it needs, because its manifest names the parent by
+    # checksum and a read walks that chain.
     by_id = {'base': base, 'delta': delta}
+    parents = {'base': [], 'delta': [base]}
+    live = set(keep)
+    for snapshot_id in list(keep):
+        for link in walk(by_id[snapshot_id], parents[snapshot_id]):
+            for name, candidate in by_id.items():
+                if candidate['checksum'] == link['checksum']:
+                    live.add(name)
     reachable = set()
-    for snapshot_id in keep:
+    for snapshot_id in live:
         reachable |= {f['digest'] for f in by_id[snapshot_id]['files']}
     supplied = set(base['objects']) | set(delta['objects'])
     check(tag + ' retention/reachable', set(plan['reachable_objects']) == reachable,
@@ -468,18 +476,37 @@ def run_iteration(rng, index):
     check(tag + ' retention/collectible',
           set(plan['collectible_objects']) == supplied - reachable,
           f"{sorted(set(plan['collectible_objects']) ^ (supplied - reachable))}")
-    live = sum(len(resolve(walk(delta, [base]), d)) for d in reachable)
-    check(tag + ' retention/live', plan['live_bytes'] == live,
-          f"{plan['live_bytes']} vs {live}")
-    collectible = sum(len(payload_of(base, d)) for d in supplied - reachable
-                      if d in base['objects'])
-    collectible += sum(len(payload_of(delta, d)) for d in supplied - reachable
-                       if d in delta['objects'])
+    live_bytes = 0
+    for digest in reachable:
+        payload = resolve(walk(delta, [base]), digest)
+        if payload is None:
+            payload = resolve(walk(base, []), digest)
+        live_bytes += len(payload)
+    check(tag + ' retention/live', plan['live_bytes'] == live_bytes,
+          f"{plan['live_bytes']} vs {live_bytes}")
+    collectible = 0
+    for digest in supplied - reachable:
+        holder = base if digest in base['objects'] else delta
+        collectible += len(payload_of(holder, digest))
     check(tag + ' retention/collectible-bytes', plan['collectible_bytes'] == collectible,
           f"{plan['collectible_bytes']} vs {collectible}")
+    check(tag + ' retention/keep',
+          sorted(plan['keep_snapshots']) == sorted(keep), str(plan['keep_snapshots']))
+    check(tag + ' retention/required',
+          sorted(plan['required_snapshots']) == sorted(live - set(keep)),
+          f"{plan['required_snapshots']} vs {sorted(live - set(keep))}")
     check(tag + ' retention/drop',
-          sorted(plan['drop_snapshots']) == sorted({'base', 'delta'} - set(keep)),
-          str(plan['drop_snapshots']))
+          sorted(plan['drop_snapshots']) == sorted(set(by_id) - live),
+          f"{plan['drop_snapshots']} vs {sorted(set(by_id) - live)}")
+    # Whatever the plan proposes to drop must leave every kept snapshot readable.
+    survivors = set(live)
+    for snapshot_id in keep:
+        for link in walk(by_id[snapshot_id], parents[snapshot_id]):
+            if link['checksum'] == by_id[snapshot_id]['checksum']:
+                continue
+            check(tag + ' retention/link-survives',
+                  any(by_id[name]['checksum'] == link['checksum'] for name in survivors),
+                  'a chain link of a kept snapshot is scheduled for deletion')
 
 
 def main():

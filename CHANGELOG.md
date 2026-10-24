@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Retention and restore correctness
+
+- `retention` no longer proposes deleting a snapshot that a kept snapshot's chain
+  requires. Such a link is promoted into the new `required_snapshots` field, and a
+  link with no listed identity is reported under `external_parents`. Previously a
+  plan could say "keep the delta, drop its base", which left the kept snapshot
+  unreadable while every object it needed was still present.
+- `restore` passes a base64 payload straight through when the reader wants base64,
+  instead of decoding it to verify and re-encoding it to return. Restore of an
+  8 MiB snapshot: 1660 -> 1261 ms; 4 MiB 912 -> 696 ms.
+- `scope` in the retention plan now describes what the plan actually covers.
+
+This is a behaviour change for callers that read `drop_snapshots` alone: the field
+is now narrower, and the identities removed from it appear in
+`required_snapshots`.
+
 ### Verification
 
 - `scripts/fuzz.py`: seeded differential test against an independent oracle

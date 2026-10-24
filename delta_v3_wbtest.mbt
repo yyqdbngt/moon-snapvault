@@ -284,14 +284,18 @@ test "retention counts inherited objects" {
     ]),
   )
   assert_eq(get(plan, "keep_snapshots"), strings(["delta"]))
-  assert_eq(get(plan, "drop_snapshots"), strings(["base"]))
-  // Four distinct payloads live across the chain: shared, old content, new
-  // content and added.
-  assert_eq(arr(get(plan, "reachable_objects")).length(), 3)
-  assert_eq(arr(get(plan, "collectible_objects")).length(), 1)
-  // Live: shared (6) + new content (11) + added (5). Collectible: only the
-  // retired "old content" (11) that the base stored.
-  assert_eq(get(plan, "live_bytes"), Number(22.0))
-  assert_eq(get(plan, "collectible_bytes"), Number(11.0))
+  // The delta cannot be read without its parent, so the base is promoted rather
+  // than dropped even though it was not requested.
+  assert_eq(get(plan, "required_snapshots"), strings(["base"]))
+  assert_eq(get(plan, "drop_snapshots"), strings([]))
+  // Keeping the delta keeps the base as well, so both manifests are live: shared,
+  // old content, new content and added are all reachable and nothing is
+  // collectible. The retired payload the base stored is still referenced by the
+  // base's own manifest, which has to stay valid.
+  assert_eq(arr(get(plan, "reachable_objects")).length(), 4)
+  assert_eq(arr(get(plan, "collectible_objects")).length(), 0)
+  // shared (6) + old content (11) + new content (11) + added (5)
+  assert_eq(get(plan, "live_bytes"), Number(33.0))
+  assert_eq(get(plan, "collectible_bytes"), Number(0.0))
   assert_eq(get(plan, "plan_only"), Bool(true))
 }

@@ -73,7 +73,7 @@ node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 54 MoonBit test declarations and 46 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 60 MoonBit test declarations and 49 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
@@ -117,7 +117,7 @@ See `docs/incremental.md`.
 
 Snapshots are written as `"version": 2` with base64 object payloads. `"format": 1` still produces the old decimal layout, and both versions stay readable by `audit`, `restore`, `diff` and `retention`; a snapshot's version decides which payload encoding is accepted. `restore` reports `format` and `encoding`, and requests accept `content_base64` next to `text` and `bytes`.
 
-Measured on the reference host (moon 0.1.20261023, Node 20, release build): 1 MiB incompressible file 2396 -> 292 ms backup, 2081 -> 300 ms restore, snapshot 3.57 -> 1.33 MiB. 8 MiB backs up in 1.4 s and restores in 1.5 s. SHA-256 and base64 are implemented in this module now, at 61 MiB/s and about 300 ms per 8 MiB respectively. See `docs/snapshot-format.md` and `node scripts/bench.mjs`.
+Measured on the reference host (moon 0.1.20261023, Node 20, release build): 1 MiB incompressible file 2396 -> 292 ms backup, 2081 -> 300 ms restore, snapshot 3.57 -> 1.33 MiB. 8 MiB backs up in 1.4 s and restores in 1.3 s. SHA-256 and base64 are implemented in this module now, at 61 MiB/s and about 300 ms per 8 MiB respectively. See `docs/snapshot-format.md` and `node scripts/bench.mjs`.
 
 `audit` now verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`. Before this revision `audit` accepted a snapshot whose unreferenced object did not match its key, while `retention` refused the same bytes and `create(previous=…)` under-counted `new_object_bytes`. The three operations now agree.
 

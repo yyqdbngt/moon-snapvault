@@ -276,6 +276,8 @@ fn issue(path : Value, object : String, reason : String) -> Value {
 /// A validated snapshot in a parent chain: the version that decides its payload
 /// encoding, and the objects it stores.
 priv struct Link {
+  /// The manifest checksum, which is how a reader names this link.
+  checksum : String
   version : Int32
   objects : Map[String, Value]
 }
@@ -317,7 +319,7 @@ fn resolve_chain(
       raise InputError("parent snapshot chain is too deep")
     }
     visited[id] = true
-    links.push({ version, objects: obj(get(current, "objects")), })
+    links.push({ checksum: id, version, objects: obj(get(current, "objects")), })
     match parent {
       None => break
       Some(hash) =>
@@ -343,6 +345,31 @@ fn object_payload(links : Array[Link], hash : String) -> (Int32, Value)? {
     }
   }
   None
+}
+
+///|
+/// The payload for a reader that expects `target_version`'s encoding.
+///
+/// When the payload is already base64 and the reader wants base64, the stored
+/// text is handed back unchanged: the audit has verified those bytes, and
+/// decoding then re-encoding them would be pure work on every restore.
+fn payload_for(
+  links : Array[Link],
+  hash : String,
+  target_version : Int32,
+) -> Value? {
+  match object_payload(links, hash) {
+    None => None
+    Some((source_version, raw)) =>
+      if source_version >= 2 && target_version >= 2 {
+        Some(raw)
+      } else {
+        match decode_object(source_version, raw) {
+          None => None
+          Some(bytes) => Some(encode_object(target_version, bytes))
+        }
+      }
+  }
 }
 
 ///|
@@ -732,12 +759,8 @@ fn restore_with(
     let path = str(get(file, "path"))
     if selects(selection, path) {
       let hash = str(get(file, "digest"))
-      let payload = match object_payload(links, hash) {
-        Some((link_version, raw)) =>
-          match decode_object(link_version, raw) {
-            Some(bytes) => encode_object(version, bytes)
-            None => Null
-          }
+      let payload = match payload_for(links, hash, version) {
+        Some(value) => value
         None => Null
       }
       let result = obj(file).copy()
