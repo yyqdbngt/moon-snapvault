@@ -18,7 +18,7 @@ Use MoonBit (`moon` 0.1.20261012 or newer) and Node.js 24 for CI parity; Node.js
 
 ```sh
 moon update
-moon build --target js
+moon build --target js --release   # the adapter prefers this build
 moon run cmd/main --target js -- examples/scenario-1.json
 node _build/js/debug/build/cmd/main/main.js examples/scenario-1.json
 ```
@@ -70,7 +70,7 @@ node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 26 MoonBit test declarations and 29 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`) or separately written reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 32 MoonBit test declarations and 29 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`) or separately written reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
@@ -90,7 +90,7 @@ Repository release: 0.2.0; published MoonCakes module: `yyqdbngt/moon_snapvault@
 
 Snapshots are written as `"version": 2` with base64 object payloads. `"format": 1` still produces the old decimal layout, and both versions stay readable by `audit`, `restore`, `diff` and `retention`; a snapshot's version decides which payload encoding is accepted. `restore` reports `format` and `encoding`, and requests accept `content_base64` next to `text` and `bytes`.
 
-Measured on the reference host (moon 0.1.20261023, Node 20, debug build): 1 MiB incompressible file 2396 -> 649 ms backup, 2081 -> 423 ms restore, snapshot 3.57 -> 1.33 MiB. 8 MiB backs up in 3.3 s and restores in 2.0 s. See `docs/snapshot-format.md`.
+Measured on the reference host (moon 0.1.20261023, Node 20, release build): 1 MiB incompressible file 2396 -> 292 ms backup, 2081 -> 300 ms restore, snapshot 3.57 -> 1.33 MiB. 8 MiB backs up in 1.4 s and restores in 1.5 s. SHA-256 and base64 are implemented in this module now, at 61 MiB/s and about 300 ms per 8 MiB respectively. See `docs/snapshot-format.md` and `node scripts/bench.mjs`.
 
 `audit` now verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`. Before this revision `audit` accepted a snapshot whose unreferenced object did not match its key, while `retention` refused the same bytes and `create(previous=…)` under-counted `new_object_bytes`. The three operations now agree.
 

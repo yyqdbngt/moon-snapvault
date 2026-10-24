@@ -8,6 +8,13 @@ SHA-256 object identities; byte, UTF-8 text or base64 inputs; deduplicated conte
 
 See `docs/boundaries.md`. In short: snapshots are self contained, the host adapter caps a backup at 1 MiB of source bytes, the core CLI caps input at 16 MiB, regular files only, restore needs a new directory, audits cover all objects, and manifests are integrity checked but not authenticated.
 
+## Codec
+
+`sha256.mbt` and `base64.mbt` hold the two primitives the domain code needs. SHA-256 runs over whole
+64-byte blocks with a reusable message schedule; base64 encodes into a byte array and decodes in one
+pass over a reverse table. Both are validated against FIPS 180-4 and RFC 4648 vectors and against
+Python's standard library, and `cmd/bench` reports their throughput.
+
 ## Integration
 
 The core accepts semantic values and returns deterministic JSON-shaped reports. Host adapters handle files, network or processes; they invoke the compiled MoonBit engine. The CLI package declares `supported_targets = "js"`; other backends test the portable core.

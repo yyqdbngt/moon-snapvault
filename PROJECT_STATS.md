@@ -4,10 +4,12 @@ Snapshot date: 2026-10-24. Module version: 0.3.0 in `main`; the published module
 
 | Category | Count |
 |---|---:|
-| Owned production MoonBit physical lines (root + CLI) | 826 |
-| Nonblank, non-comment production lines | 704 |
-| MoonBit test declarations | 26 |
+| Owned production MoonBit physical lines (root + CLI + codec) | 1072 |
+| Nonblank, non-comment production lines | 908 |
+| MoonBit test declarations | 32 |
 | CLI fixture cases | 29 |
 | Generated fixture test declarations | 0 |
 
-Dependencies, tests, examples, documentation and build outputs are excluded from the production line count. Test declarations are hand written and executable counts, not a claim of that many independent requirements. `tests/cases.json` fixtures are executed by `scripts/check.mjs` through the compiled CLI; the white-box tests assert the same inputs directly. CI and installed-package evidence are recorded separately after validation. Original planning line-count ranges are not completion results.
+The codec column covers `sha256.mbt` and `base64.mbt`, which are project code: the module has no
+runtime dependency outside `moonbitlang/core`. Dependencies, tests, examples, documentation and
+build outputs are excluded from the production line count. Test declarations are hand written and executable counts, not a claim of that many independent requirements. `tests/cases.json` fixtures are executed by `scripts/check.mjs` through the compiled CLI; the white-box tests assert the same inputs directly. CI and installed-package evidence are recorded separately after validation. Original planning line-count ranges are not completion results.

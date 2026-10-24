@@ -30,6 +30,18 @@ resolves the published 0.2.0 until a release is published.
   to 8 MiB (10.7 MiB of JSON for incompressible data, still inside the 16 MiB
   request cap). `SNAPVAULT_ADAPTER_LIMIT_BYTES` overrides the limit.
 
+### Performance
+
+- SHA-256 is implemented in `sha256.mbt` over whole 64-byte blocks with a reusable schedule: 61
+  MiB/s instead of 21 MiB/s for the byte-at-a-time package that was used before, identical output.
+- base64 is implemented in `base64.mbt`: encoding fills a byte array and decodes once, which takes
+  8 MiB in 8 MiB numbers from 1445 ms to about 300 ms; decoding is ours as well.
+- `scripts/engine.mjs` prefers a release build and falls back to debug; `MOON_BUILD` selects one.
+- Through the adapter on the reference host, a 1 MiB incompressible backup went from 2396 ms to
+  292 ms and restore from 2081 ms to 300 ms; 8 MiB backs up in 1387 ms and restores in 1523 ms.
+  `scripts/bench.mjs` and `cmd/bench` reproduce the numbers.
+- The module no longer depends on `gmlewis/sha256`; `moonbitlang/core` is the only dependency.
+
 ### Audit contract (also unreleased)
 
 - `audit` verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`; `issues` entries now always carry `object` and use `path: null` when no file references the object.
