@@ -74,6 +74,16 @@ refuse, and the snapshot is not wrong: it faithfully records what the source hel
 The consequence for a caller that writes the core's `restore` payloads itself is
 unchanged: that check is theirs.
 
+Two Windows specifics are worth naming because they are not visible from the path
+syntax. A drive-relative path such as `c:escape` or `a:../escape` resolves against
+the current directory *of that drive*, well outside the destination; containment
+still catches it, and the integration suite asserts that rather than trusting it. And
+a colon inside a name (`ads.txt:hidden`) is an alternate data stream on NTFS, not a
+regular file: it is written but never appears in a directory listing, so the restored
+tree would silently differ from the manifest. Windows refuses that name through
+`portablePaths`; on Linux and macOS the colon is an ordinary character and the file
+restores as an ordinary file.
+
 Two files whose names differ only by case or normalisation form are two files on
 Linux and one file on a case-insensitive or normalising volume. That is a property
 of the destination filesystem, not of the snapshot, so the two checks live in

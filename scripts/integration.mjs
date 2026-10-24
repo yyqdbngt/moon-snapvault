@@ -311,6 +311,41 @@ try {
     assert.equal(engine({operation: 'audit', snapshot: read(nativeSnap)}).valid, true);
   }
 
+  // Paths that resolve outside the destination must be refused wherever they can be
+  // written at all. On Windows a drive-letter or drive-relative path is the live
+  // case; on Linux and macOS there is no path of that shape, and the core's rules
+  // already reject an absolute one.
+  for (const hostile of ['C:/tmp/escape', 'c:escape', 'a:../escape', '/tmp/escape',
+                         '../escape', '../../escape']) {
+    assert.throws(
+      () => restore(one, path.join(base, 'escape-' + hostile.replace(/\W/g, '')),
+        [], [hostile]),
+      /not found|unsafe|leaves|collide/i,
+      'a selection of ' + hostile + ' must be refused');
+  }
+
+  // A colon inside a file name is a Windows alternate data stream rather than a
+  // regular file: it would be written, would not appear in a directory listing, and
+  // would silently not be the file the manifest describes. Windows refuses it; the
+  // platforms where `:` is an ordinary character restore it as one.
+  {
+    const colonFiles = [...slimFiles, {path: 'ads.txt:hidden', content_base64: 'eA==', mode: 0o644}];
+    const colonSnap = engine({operation: 'create', format: 3, files: colonFiles}).snapshot;
+    assert.equal(engine({operation: 'audit', snapshot: colonSnap}).valid, true,
+      'a colon is valid data');
+    const colonFile = path.join(base, 'colon.json');
+    fs.writeFileSync(colonFile, JSON.stringify(colonSnap));
+    const colonTarget = path.join(base, 'colon-out');
+    if (process.platform === 'win32') {
+      assert.throws(() => restore(colonFile, colonTarget), /Windows reserves/);
+      assert.equal(fs.existsSync(colonTarget), false);
+    } else {
+      restore(colonFile, colonTarget);
+      assert.ok(fs.readdirSync(colonTarget).includes('ads.txt:hidden'),
+        'on this platform the colon is part of an ordinary name');
+    }
+  }
+
   // A name longer than any filesystem allows is refused by the core, so a restore
   // cannot fail halfway through with ENAMETOOLONG and leave a partial directory.
   assert.throws(
@@ -378,7 +413,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, over-long name rejection, case and normalization collision rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

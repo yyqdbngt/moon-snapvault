@@ -28,6 +28,17 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Windows path forms, tested rather than reasoned about
+
+- Integration tests now assert containment for every hostile selection shape the core
+  accepts, including Windows drive-letter and drive-relative paths (`c:escape`,
+  `a:../escape`), which resolve against another drive's current directory. They were
+  refused already; the point is that a test says so.
+- A colon inside a file name is an alternate data stream on NTFS: written, but absent
+  from a directory listing, so the restored tree would silently differ from the
+  manifest. Windows refuses such a name; the platforms where `:` is ordinary restore
+  it as an ordinary file. Both branches are now covered.
+
 ### `diff` had no regression coverage
 
 - `diff` was the one operation with no fixture and no entry in the usage table, so
