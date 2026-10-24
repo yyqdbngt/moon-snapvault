@@ -2336,5 +2336,177 @@
       "snapshot/files/0/path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
     "error": false
+  },
+  {
+    "name": "diff reports added, removed and modified paths",
+    "request": {
+      "operation": "diff",
+      "old": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "94d86137a75e23bf35e7b9410ab5c44918f00e3f32dbc6bc8fb4ffb4d9a2baf4"
+      },
+      "new": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "c.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l",
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "ff6c909a7f671047a48c7ffa770280d83f10e3ce830433b1b3c3356f170f620f"
+      }
+    },
+    "expected": {
+      "added": [
+        "c.txt"
+      ],
+      "removed": [
+        "b.txt"
+      ],
+      "modified": [
+        "a.txt"
+      ]
+    },
+    "error": false
+  },
+  {
+    "name": "diff of a snapshot against itself is empty",
+    "request": {
+      "operation": "diff",
+      "old": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "94d86137a75e23bf35e7b9410ab5c44918f00e3f32dbc6bc8fb4ffb4d9a2baf4"
+      },
+      "new": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "94d86137a75e23bf35e7b9410ab5c44918f00e3f32dbc6bc8fb4ffb4d9a2baf4"
+      }
+    },
+    "expected": {
+      "added": [],
+      "removed": [],
+      "modified": []
+    },
+    "error": false
+  },
+  {
+    "name": "diff refuses a snapshot with a broken checksum",
+    "request": {
+      "operation": "diff",
+      "old": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "new": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "c.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l",
+          "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+        },
+        "checksum": "ff6c909a7f671047a48c7ffa770280d83f10e3ce830433b1b3c3356f170f620f"
+      }
+    },
+    "expected": {},
+    "error": true
   }
 ]

@@ -38,6 +38,16 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Release readiness
+
+`scripts/verify.sh` is run against the pushed tree from a fresh clone before a
+release, not only against a working copy, because that is the artifact users get.
+Two checks exist specifically because a released version cannot be corrected in
+place: `scripts/stats.mjs` for the counts in `PROJECT_STATS.md`, and
+`scripts/interface.mjs` for `pkg.generated.mbti`. The latter was stale once already,
+describing `create_snapshot` without a parameter that had been added three commits
+earlier.
+
 ### Validity is not portability
 
 The same reasoning applies to every other platform-specific naming rule. The core

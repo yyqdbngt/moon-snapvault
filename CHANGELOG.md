@@ -28,6 +28,23 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### `diff` had no regression coverage
+
+- `diff` was the one operation with no fixture and no entry in the usage table, so
+  nothing but the fuzz oracle compared its output against an expectation. It now has
+  three fixtures - added/removed/modified, a self-comparison, and a refusal on a
+  broken checksum - and a documented request shape.
+
+### Published interface was stale
+
+- Fixed: `pkg.generated.mbti` still described `create_snapshot` without
+  `known_objects`, three commits after that parameter was added. Anyone reading the
+  published interface saw a function that no longer matched the code, and a released
+  version cannot be corrected in place. `scripts/interface.mjs` now compares the
+  committed file against `moon info` and fails on drift; it is part of `verify.sh`
+  and CI. It normalises the `Int`/`Int32` spelling, which differs between supported
+  toolchains without meaning anything.
+
 ### Windows, verified rather than assumed
 
 - CI gained a Windows job, and it immediately found something the Linux and macOS

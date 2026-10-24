@@ -8,7 +8,7 @@ import {
 // Values
 pub fn audit_snapshot(Value) -> Value raise
 
-pub fn create_snapshot(Array[Value], previous? : Value, parents? : Array[Value], format? : Int32) -> Value raise
+pub fn create_snapshot(Array[Value], previous? : Value, parents? : Array[Value], known_objects? : Array[String], format? : Int32) -> Value raise
 
 pub fn diff_snapshots(Value, Value) -> Value raise
 

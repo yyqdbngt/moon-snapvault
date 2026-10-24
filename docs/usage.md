@@ -35,6 +35,20 @@ The core keeps the payload in its stored encoding; `scripts/filesystem.mjs` turn
 snapshots. The format and its compatibility rules are described in
 [snapshot format](snapshot-format.md).
 
+## Comparing two snapshots
+
+`diff` compares manifests only, so it works between any two snapshots whatever
+format or chain they belong to. Paths are compared exactly; a file whose digest,
+size or mode differs counts as modified.
+
+| Request | Result |
+|---|---|
+| `{"operation": "diff", "old": <snapshot>, "new": <snapshot>}` | `added`, `removed`, `modified`, each sorted |
+| `{"operation": "diff", "old": s, "new": s}` | three empty lists |
+
+Both snapshots are validated first, so a broken checksum is an error rather than a
+misleading comparison.
+
 ## Reading a chain in pieces
 
 | Request | Result |
