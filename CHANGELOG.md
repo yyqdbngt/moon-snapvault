@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### The CI workflow is validated, not trusted
+
+- `scripts/workflow.py` parses `ci.yml` and checks the properties that decide whether a
+  green run is evidence: no step may be allowed to fail, mask its exit status or
+  background its command; actions must be pinned; the matrix must still cover four
+  backends; and every script in `verify.sh` must appear in the integration job.
+- Confirmed by injecting five breakages - `continue-on-error`, `|| true`, an unpinned
+  action, a missing backend, a step removed from CI alone - each of which was reported
+  with the offending step named.
+- Also checked, since it was an open question: `moon update` in CI fetches nothing for
+  this module, which has no registry dependencies. CI therefore builds the checked-out
+  tree, not a cached copy.
+
 ### Byte-identical output across backends, finally checked
 
 - The claim that the four backends serialize identically was justified by one manual

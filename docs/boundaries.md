@@ -42,6 +42,28 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### The workflow itself is checked
+
+CI is the only cross-platform evidence this project has: the macOS and Windows jobs
+cannot be reproduced locally, and several claims above rest on them. That makes the
+workflow file part of the evidence, and it was never checked - a step removed, an action
+unpinned, or a `continue-on-error` added would have kept every run green while the
+coverage it supposedly provided quietly stopped existing.
+
+`scripts/workflow.py` parses `ci.yml` with PyYAML and asserts what makes a green run mean
+something: every job has a runner and steps; no step may set `continue-on-error`, mask an
+exit status with `|| true` or background its command; every action is pinned to a ref; the
+matrix still covers all four backends; and the scripts named in `scripts/verify.sh` all
+appear in the integration job, so the local and CI ladders cannot drift apart.
+
+Five deliberate breakages were injected to confirm it fails: a step allowed to fail, a
+masked exit status, an unpinned action, a backend dropped from the matrix, and a step
+removed from CI only. Each was caught with a message naming the step.
+
+PyYAML is not in the standard library, so the check skips loudly when it is absent rather
+than failing a build for a missing optional dependency - and the skip is printed, because
+a silent one would read as a pass.
+
 ### Cross-backend serialization is pinned, where all four backends run
 
 The project claims byte-identical output across the JS, wasm, wasm-gc and native

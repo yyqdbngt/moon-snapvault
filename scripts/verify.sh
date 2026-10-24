@@ -55,6 +55,9 @@ python3 -B scripts/robustness.py
 # Every field of a snapshot, mutated every way, with the verdict predicted rather than
 # recorded: this is the claim `audit` exists to make.
 python3 -B scripts/mutation_sweep.py
+# The workflow file is checked too: CI is the only cross-platform evidence there is, so
+# a step that silently stopped running would make the coverage claims fiction.
+python3 -B scripts/workflow.py
 # Randomized differential test. FUZZ_ITERATIONS trades time for coverage; the
 # default is small enough for CI and still exercises every seeded path.
 python3 -B scripts/fuzz.py "${FUZZ_ITERATIONS:-6}"

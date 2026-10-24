@@ -31,6 +31,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      # scripts/workflow.py parses ci.yml; PyYAML is not stdlib.
+      - run: python3 -m pip install --quiet pyyaml
       - uses: hustcer/setup-moonbit@1522f9aef02a8ca0187dfc00a41f5dd6b16750f7
       - run: moon update
       - run: moon fmt --check
@@ -46,6 +48,7 @@ jobs:
       - run: python3 -B scripts/delta_reference.py
       - run: python3 -B scripts/robustness.py
       - run: python3 -B scripts/mutation_sweep.py
+      - run: python3 -B scripts/workflow.py
       - run: python3 -B scripts/fuzz.py 8
       - run: node scripts/integration.mjs
   # The path rules exist for case-insensitive, Unicode-normalising filesystems, and

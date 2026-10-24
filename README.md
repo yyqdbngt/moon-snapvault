@@ -86,6 +86,7 @@ python -B scripts/delta_reference.py
 python -B scripts/fuzz.py 8
 python -B scripts/robustness.py
 python -B scripts/mutation_sweep.py
+python -B scripts/workflow.py
 node scripts/examples.mjs
 node scripts/stats.mjs
 node scripts/interface.mjs
