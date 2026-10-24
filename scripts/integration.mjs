@@ -262,7 +262,9 @@ try {
   assert.throws(() => restore(spareCorrupt, spareTarget, [one]));
   assert.equal(fs.existsSync(spareTarget), false);
 
-  // Permission bits survive the process umask.
+  // Permission bits survive the process umask where the platform has them. NTFS
+  // does not: chmod there only toggles the read-only bit, so the recorded mode
+  // cannot come back and claiming otherwise would be false.
   fs.writeFileSync(path.join(source, 'run.sh'), '#!/bin/sh\n');
   fs.chmodSync(path.join(source, 'run.sh'), 0o777);
   const withMode = path.join(base, 'mode.json');
@@ -271,14 +273,24 @@ try {
   const modeTarget = path.join(base, 'mode-out');
   const modeResult = restore(withMode, modeTarget);
   process.umask(previousUmask);
-  assert.equal(fs.statSync(path.join(modeTarget, 'run.sh')).mode & 0o777, 0o777);
-  assert.equal(modeResult.modes_applied, modeResult.files);
+  const restoredMode = fs.statSync(path.join(modeTarget, 'run.sh')).mode & 0o777;
+  if (process.platform === 'win32') {
+    // What Windows can represent: the file is writable, so the read-only bit is
+    // clear. The execute bits are not a Windows concept at all.
+    assert.equal(restoredMode & 0o200, 0o200, 'restored file should be writable');
+    assert.equal(modeResult.modes_applied, modeResult.files);
+  } else {
+    assert.equal(restoredMode, 0o777);
+    assert.equal(modeResult.modes_applied, modeResult.files);
+  }
 
   // Names Windows forbids are ordinary Linux file names. The snapshot must be able
   // to hold them and restore them here; only the writer's portability check, which
   // runs against the actual destination, decides otherwise. Refusing them in the
   // core made such a directory impossible to back up at all.
-  {
+  if (process.platform !== 'win32') {
+    // Skipped on Windows: `con` and `we:ird.txt` cannot exist there, which is the
+    // whole point of the portability check below.
     const nativeDir = path.join(base, 'native-names');
     const nativeSrc = path.join(nativeDir, 'src');
     fs.mkdirSync(nativeSrc, {recursive: true});

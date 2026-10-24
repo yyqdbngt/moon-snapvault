@@ -28,6 +28,16 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Windows, verified rather than assumed
+
+- CI gained a Windows job, and it immediately found something the Linux and macOS
+  jobs could not: `restore` claimed to preserve permission bits, but NTFS has none.
+  `chmod` there toggles the read-only flag only, so a recorded `0755` comes back as
+  `0666`. `restore` now also reports `modes_exact`, which is `false` on Windows, so a
+  caller is not told the recorded mode is back when it is not.
+- The MoonBit toolchain, all four core targets, the fixture CLI, the statistics check
+  and the rest of the integration suite run on `windows-latest` unchanged.
+
 ### Backing up trees with platform-specific names
 
 - Fixed: a directory containing a file named `con`, `a\b.txt` or `we:ird.txt` could
