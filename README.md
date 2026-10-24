@@ -27,7 +27,7 @@ node _build/js/release/build/cmd/main/main.js examples/incremental.json
 and `examples/expected/` holds the exact answer each one produces. Those files are
 checked, so an example cannot quietly stop being true.
 
-Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. Successful requests print one JSON result. Every failure prints exactly one `{"error": "<message>"}` object on stdout and exits 1; usage errors exit 2. That contract also covers host-side failures (missing file, invalid UTF-8, oversize input), not just request validation. The host runner is a separate process and does not edit the input request file.
+Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. Successful requests print one JSON result. Every failure prints exactly one `{"error": "<message>"}` object on stdout and exits 1; usage errors exit 2. That contract also covers host-side failures (missing file, invalid UTF-8, oversize input), not just request validation, and it applies to both entry points: `scripts/filesystem.mjs` uses the same envelope and exit codes. The host runner is a separate process and does not edit the input request file.
 
 ## Library use
 
@@ -88,6 +88,7 @@ python -B scripts/robustness.py
 python -B scripts/mutation_sweep.py
 python -B scripts/workflow.py
 python -B scripts/docs.py
+node scripts/cli-contract.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs
 node scripts/stats.mjs

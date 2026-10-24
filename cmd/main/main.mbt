@@ -13,7 +13,26 @@ extern "js" fn read_input(path : String) -> String =
   #|     const text = new TextDecoder('utf-8', {fatal: true}).decode(bytes);
   #|     return JSON.stringify({ok: true, text});
   #|   } catch (err) {
-  #|     const message = err && err.message ? err.message : String(err);
+  #|     // The docs promise a plain reason, not a Node error. "ENOENT: no such file or
+  #|     // directory, open '/x/y.json'" names an errno and repeats the path the caller
+  #|     // just typed; say it in words instead, and only fall back to the raw text for
+  #|     // codes this list does not cover.
+  #|     const reasons = {
+  #|       ENOENT: 'the file does not exist',
+  #|       EACCES: 'permission denied',
+  #|       EPERM: 'operation not permitted',
+  #|       EISDIR: 'it is a directory',
+  #|       ENOTDIR: 'a path component is not a directory',
+  #|       ELOOP: 'too many symbolic links',
+  #|       ENAMETOOLONG: 'the name is too long',
+  #|       EMFILE: 'too many open files',
+  #|       ENFILE: 'too many open files',
+  #|       ENOSPC: 'no space left on device',
+  #|       EIO: 'an I/O error occurred',
+  #|     };
+  #|     const code = err && err.code;
+  #|     const message = reasons[code]
+  #|       || (err && err.message ? err.message : String(err));
   #|     return JSON.stringify({ok: false, error: message});
   #|   }
   #| }
@@ -63,7 +82,11 @@ fn fail(message : String) -> Unit {
 fn main {
   let args = @env.args()
   if args.length() != 3 {
-    println(
+    // A usage mistake goes through the same envelope as every other failure. It used to
+    // print free text, so a caller that parsed stdout as JSON had one path where it was
+    // not JSON - and `docs/usage.md` says usage errors exit 2, which is only useful if the
+    // exit code and the body agree about what happened.
+    fail(
       "Usage: moon run cmd/main --target js -- request.json (or - for stdin)",
     )
     status(2)

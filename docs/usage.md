@@ -10,7 +10,9 @@ Every example below is an executable fixture. Assertions cover the listed result
 | Invalid request, missing file, invalid UTF-8, input over 16 MiB | `{"error": "<message>"}` | 1 |
 | Wrong number of arguments | usage line | 2 |
 
-The contract is the same for every failure, including host-side ones, so a caller can always parse stdout as JSON. Messages are the plain reason (`unsafe source path`, `manifest checksum mismatch`); they do not expose MoonBit type names.
+The contract is the same for every failure, including host-side ones, so a caller can always parse stdout as JSON - and it holds for both entry points. `scripts/filesystem.mjs`, which works on real directories, used to print a bare reason on stderr and exit 1 for a usage mistake; it now uses the same envelope and the same codes, because a caller shelling out to both should not parse two shapes from two streams. `scripts/cli-contract.mjs` asserts this over both.
+
+Messages are the plain reason (`unsafe source path`, `manifest checksum mismatch`); they do not expose MoonBit type names, errno codes or the path the caller just typed. A missing input file reads `the file does not exist`, not `ENOENT: no such file or directory, open '/x/y.json'`.
 
 ## Snapshot formats
 

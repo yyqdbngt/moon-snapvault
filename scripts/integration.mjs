@@ -316,11 +316,23 @@ try {
       fs.writeFileSync(path.join(raceSrc, `f${i}.bin`), Buffer.alloc(150000, i));
     }
     const filesystem = fileURLToPath(new URL('./filesystem.mjs', import.meta.url));
+    // The adapter reports failures as `{"error": ...}` on stdout, so a race loser's
+    // reason has to be read from there. It used to print on stderr, which is why this
+    // collector looked there.
     const spawnOne = (args) => new Promise((resolve) => {
       const child = spawn(process.execPath, [filesystem, ...args]);
+      let out = '';
       let err = '';
+      child.stdout.on('data', (chunk) => out += chunk);
       child.stderr.on('data', (chunk) => err += chunk);
-      child.on('close', (code) => resolve({code, err}));
+      child.on('close', (code) => {
+        let message = err;
+        try {
+          const parsed = JSON.parse(out);
+          if (typeof parsed.error === 'string') message = parsed.error;
+        } catch { /* not JSON: keep whatever stderr had */ }
+        resolve({code, err: message, stdout: out});
+      });
     });
 
     const racedSnapshot = path.join(raceDir, 'raced.json');

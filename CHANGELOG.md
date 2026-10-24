@@ -28,6 +28,21 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### One error contract, for both entry points
+
+- `scripts/filesystem.mjs` printed failures as free text on stderr and exited 1 for a
+  usage mistake, while the core CLI printed `{"error": ...}` on stdout and exited 2. A
+  caller shelling out to both had to parse two shapes from two streams. Both now use the
+  same envelope and the same exit codes.
+- The core CLI's usage path printed free text too, so a caller that parsed stdout as JSON
+  had exactly one path where it was not JSON - the one that reports a usage error.
+- Host-side failures in the core CLI no longer pass Node's message through: a missing file
+  is `the file does not exist`, not `ENOENT: no such file or directory, open '/x/y.json'`,
+  which named an errno and repeated the path the caller had just typed.
+- `scripts/cli-contract.mjs` asserts the whole contract over both entry points - success,
+  failure, usage, and that no message contains a `CODE: ` prefix. Verified to fail when
+  the adapter goes back to stderr, and when a usage mistake returns 1.
+
 ### A refusal has to say what it refused
 
 - Fixed: five source-side refusals either named no file (`Special files are unsupported`,

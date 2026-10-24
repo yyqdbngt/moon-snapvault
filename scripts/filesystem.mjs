@@ -718,5 +718,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     } else {
       throw new Error('Unknown operation: ' + operation);
     }
-  } catch (err) { console.error(err.message); process.exitCode = 1; }
+  } catch (err) {
+    // One envelope for both CLIs. This one used to print a bare reason on stderr, so a
+    // caller had to parse JSON from one tool and free text from another, on different
+    // streams. A usage mistake is exit 2 here as well, matching the core CLI.
+    const usage = err.message.startsWith('Usage:') || err.message.startsWith('Unknown operation:');
+    console.log(JSON.stringify({error: err.message}));
+    process.exitCode = usage ? 2 : 1;
+  }
 }

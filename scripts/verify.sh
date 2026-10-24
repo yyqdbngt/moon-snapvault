@@ -44,6 +44,7 @@ node scripts/interface.mjs
 node scripts/consumer-smoke.mjs
 # The examples ship with the package and are the first thing README tells a reader
 # to run, so their answers are pinned rather than assumed.
+node scripts/cli-contract.mjs
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs

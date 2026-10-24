@@ -43,7 +43,7 @@ try {
   // 1. backup must sync the snapshot before publishing it.
   const backup = run(filesystem, {}, ['backup', src, snapshot]);
   if (backup.result.status !== 0) {
-    problems.push('backup failed: ' + (backup.result.stderr || '').slice(0, 200));
+    problems.push('backup failed: ' + (backup.result.stdout || backup.result.stderr || '').slice(0, 200));
   } else if (backup.calls < 2) {
     problems.push(`backup made ${backup.calls} sync call(s); a durable one needs the file `
       + 'and its directory');
@@ -53,7 +53,7 @@ try {
   const target = path.join(workDir, 'out');
   const restore = run(filesystem, {}, ['restore', snapshot, target]);
   if (restore.result.status !== 0) {
-    problems.push('restore failed: ' + (restore.result.stderr || '').slice(0, 200));
+    problems.push('restore failed: ' + (restore.result.stdout || restore.result.stderr || '').slice(0, 200));
   } else {
     const reported = JSON.parse(restore.result.stdout);
     if (reported.durable !== true) {
@@ -70,7 +70,7 @@ try {
   const skipped = run(filesystem, {SNAPVAULT_NO_FSYNC: '1'}, ['restore', snapshot, target2]);
   if (skipped.result.status !== 0) {
     problems.push('restore with SNAPVAULT_NO_FSYNC=1 failed: '
-      + (skipped.result.stderr || '').slice(0, 200));
+      + (skipped.result.stdout || skipped.result.stderr || '').slice(0, 200));
   } else {
     if (skipped.calls !== 0) {
       problems.push(`SNAPVAULT_NO_FSYNC=1 still made ${skipped.calls} sync call(s)`);
