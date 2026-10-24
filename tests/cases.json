@@ -120,7 +120,7 @@
     "error": true
   },
   {
-    "name": "case collision",
+    "name": "a case-differing pair is a valid snapshot",
     "request": {
       "files": [
         {
@@ -133,8 +133,11 @@
         }
       ]
     },
-    "expected": {},
-    "error": true
+    "expected": {
+      "snapshot/files/0/path": "A",
+      "snapshot/files/1/path": "a"
+    },
+    "error": false
   },
   {
     "name": "followup empty retention plan",

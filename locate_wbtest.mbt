@@ -298,7 +298,7 @@ test "assemble computes the same checksum as create" {
 }
 
 ///|
-test "assemble rejects a manifest create would reject" {
+test "assemble rejects a contradiction create would reject" {
   let cases : Array[Array[Value]] = [
     [
       record([
@@ -316,7 +316,9 @@ test "assemble rejects a manifest create would reject" {
         ("mode", Number(420.0)),
       ]),
       record([
-        ("path", String("SAME.txt")),
+        // An exact duplicate is a contradiction. A case-differing pair is not:
+        // that is a property of the destination filesystem, checked by the writer.
+        ("path", String("same.txt")),
         ("digest", String(digest_of("b"))),
         ("size", Number(1.0)),
         ("mode", Number(420.0)),

@@ -38,6 +38,31 @@ A chain larger than one request is read through `locate` and `extract`, one link
 a time. That keeps restores possible, but the payloads are still held in memory
 before anything is written, so a restore needs room for the whole tree.
 
+### Validity is not portability
+
+Two files whose names differ only by case or normalisation form are two files on
+Linux and one file on a case-insensitive or normalising volume. That is a property
+of the destination filesystem, not of the snapshot, so the two checks live in
+different places:
+
+- The core rejects only structural contradictions: a path that cannot be written
+  anywhere, the same path listed twice, and a path used as both a file and a
+  directory.
+- The adapter rejects case and normalisation collisions, including the file/directory
+  variant that only appears after folding, before it creates the destination.
+
+This split was a bug fix, not a design change. The core used to fold case as well,
+which meant a directory holding `Report.txt` and `report.txt` - perfectly ordinary
+on Linux - could not be backed up at all, while the adapter was already warning
+that the snapshot "is not portable" and continuing. `audit` now reports such a
+snapshot as valid, which is the point: the snapshot faithfully records what the
+source held, and `restore` through the adapter still refuses to write it where the
+names would collide.
+
+The consequence to know about: a caller that takes the core's `restore` payloads and
+writes them itself is responsible for that check. `portablePaths` in the adapter is
+the reference implementation.
+
 ### Memory
 
 Every exchange with the core is one JSON request and one JSON response, and base64

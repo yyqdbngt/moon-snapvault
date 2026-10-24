@@ -182,18 +182,37 @@ export function backup(source, destination, previous, chain = []) {
 }
 
 // Case and Unicode normalization are filesystem properties, not snapshot
-// properties: a manifest can be valid and still contain names that collide once
-// written to a case-insensitive or normalizing filesystem. Reject those pairs
-// before anything is written so a restore never fails halfway through.
+// properties. A manifest holding `Report.txt` and `report.txt` is two files on
+// Linux and one on a case-insensitive volume, so the snapshot is valid either way
+// and only the writer can decide. This is that decision, and it is the only place
+// it is made: reject before anything is written so a restore never fails halfway
+// through and never lets one file overwrite another.
+const fold = (name) => name.normalize('NFC').toLowerCase();
+
 export function portablePaths(files) {
-  const seen = new Map();
+  const folded = new Map();
   for (const file of files) {
-    const key = file.path.normalize('NFC').toLowerCase();
-    const previous = seen.get(key);
-    if (previous !== undefined && previous !== file.path) {
-      throw new Error('Paths collide after Unicode normalization and case folding: ' + previous + ' vs ' + file.path);
+    const key = fold(file.path);
+    const previous = folded.get(key);
+    if (previous !== undefined) {
+      throw new Error('Paths collide after Unicode normalization and case folding: '
+        + previous + ' vs ' + file.path);
     }
-    seen.set(key, file.path);
+    folded.set(key, file.path);
+  }
+  // The core rejects a file that is also a directory by exact name; case folding
+  // can create that conflict where the exact names differ, so it is checked again
+  // on the folded form.
+  for (const [key, original] of folded) {
+    const parts = key.split('/');
+    let prefix = '';
+    for (let index = 0; index < parts.length - 1; index++) {
+      prefix = prefix ? prefix + '/' + parts[index] : parts[index];
+      if (folded.has(prefix)) {
+        throw new Error('Paths collide after Unicode normalization and case folding: '
+          + folded.get(prefix) + ' is a file and ' + original + ' needs it as a directory');
+      }
+    }
   }
 }
 

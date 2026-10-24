@@ -207,26 +207,20 @@ fn manifest(snapshot : Value) -> (Int32, String?, Array[Value]) raise {
   if get(snapshot, "checksum") != String(checksum(version, parent, files)) {
     raise InputError("manifest checksum mismatch")
   }
+  // Only structural contradictions are rejected here: a path that cannot be
+  // written anywhere, the same path listed twice, and a path that is both a file
+  // and a directory. Whether two names collide after case folding or Unicode
+  // normalisation depends on the destination filesystem, which this code cannot
+  // see - a directory holding `Report.txt` and `report.txt` is legitimate on Linux
+  // and refusing it here made such a directory impossible to back up at all. The
+  // writer is what has to check, and `portablePaths` in the adapter does.
   let paths : Map[String, Bool] = Map([])
-  let names : Map[String, String] = Map([])
   for file in files {
     let path = str(get(file, "path"))
-    if !safe_path(path) || paths.contains(path.to_lower()) {
+    if !safe_path(path) || paths.contains(path) {
       raise InputError("unsafe or duplicate snapshot path")
     }
-    paths[path.to_lower()] = true
-    let mut prefix = ""
-    for part in path.split("/") {
-      prefix += (if prefix == "" { "" } else { "/" }) + part.to_owned()
-      let key = prefix.to_lower()
-      match names.get(key) {
-        Some(existing) =>
-          if existing != prefix {
-            raise InputError("case-folded directory collision")
-          }
-        None => names[key] = prefix
-      }
-    }
+    paths[path] = true
     let size = num(get(file, "size"))
     if size < 0.0 || size.floor() != size {
       raise InputError("invalid file size")
@@ -247,7 +241,7 @@ fn manifest(snapshot : Value) -> (Int32, String?, Array[Value]) raise {
         None => break
         Some((before, _)) => parent = before.to_owned()
       }
-      if paths.contains(parent.to_lower()) {
+      if paths.contains(parent) {
         raise InputError("file/directory path collision")
       }
     }

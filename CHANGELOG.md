@@ -28,6 +28,27 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Backing up trees a case-insensitive volume cannot hold
+
+- Fixed: a directory containing two names that differ only by case, such as
+  `Report.txt` and `report.txt`, could not be backed up at all. The core folded case
+  when validating a manifest and rejected the pair, while the adapter's own contract
+  says such a backup proceeds with a portability warning and the restore is what
+  refuses. On Linux this made ordinary directories impossible to snapshot.
+- The core now rejects only structural contradictions - unwritable paths, exact
+  duplicate paths, a path used as both a file and a directory - and leaves case and
+  normalisation to the writer, which is the only layer that knows the destination
+  filesystem. `audit` reports such a snapshot as valid, because it is.
+- `portablePaths` became the sole enforcement point and grew the case it could not
+  previously see: a file `A` alongside `a/b.txt` is fine on Linux and impossible on
+  a case-insensitive volume, and that is now refused before the destination exists.
+- CI gained a macOS job. Its default volume is both case-insensitive and
+  normalising, so it is the only place the portability rules are exercised against a
+  real filesystem rather than a constructed collision; the job first asserts those
+  properties of the runner before relying on them.
+- Integration tests gained a real Unicode round trip (composed, decomposed, CJK,
+  emoji, RTL, zero-width joiner) and the case-collision restore refusal.
+
 ### Input robustness and selection cost
 
 - `scripts/robustness.py`: structural fuzzing of the input boundary. 305 malformed

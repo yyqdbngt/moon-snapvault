@@ -35,11 +35,40 @@ jobs:
       - run: moon update
       - run: moon fmt --check
       - run: moon build --target js
-      - run: node scripts/check.mjs
-      - run: python -B scripts/reference.py
-      - run: node scripts/integration.mjs
-      - run: python -B scripts/followup_reference.py
-      - run: python -B scripts/delta_reference.py
+      - run: moon build --target js --release
       - run: node scripts/stats.mjs
-      - run: python -B scripts/fuzz.py 8
-      - run: python -B scripts/robustness.py
+      - run: node scripts/check.mjs
+      - run: python3 -B scripts/reference.py
+      - run: python3 -B scripts/followup_reference.py
+      - run: python3 -B scripts/delta_reference.py
+      - run: python3 -B scripts/robustness.py
+      - run: python3 -B scripts/fuzz.py 8
+      - run: node scripts/integration.mjs
+  # The path rules exist for case-insensitive, Unicode-normalising filesystems, and
+  # nothing else in this workflow runs on one. A default macOS volume is both, so
+  # this job is the only place the portability checks are exercised for real rather
+  # than against a constructed collision.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: hustcer/setup-moonbit@1522f9aef02a8ca0187dfc00a41f5dd6b16750f7
+      - run: moon version --all
+      - run: moon update
+      # Confirms the platform assumption above before anything depends on it.
+      - name: Confirm the volume is case-insensitive and normalising
+        run: |
+          cd "$RUNNER_TEMP" && touch CaseProbe.txt
+          test -f caseprobe.txt
+          python3 -c "import os; open('caf\u00e9.txt','w').write('x'); assert os.path.exists('cafe\u0301.txt')"
+      - run: moon test --target js
+      - run: moon test --target native
+      - run: moon build --target js
+      - run: moon build --target js --release
+      - run: node scripts/check.mjs
+      - run: node scripts/stats.mjs
+      - run: python3 -B scripts/robustness.py
+      - run: node scripts/integration.mjs

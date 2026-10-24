@@ -274,6 +274,52 @@ try {
   assert.equal(fs.statSync(path.join(modeTarget, 'run.sh')).mode & 0o777, 0o777);
   assert.equal(modeResult.modes_applied, modeResult.files);
 
+  // A real tree of unicode names has to round-trip. This runs on whatever
+  // filesystem the tests are on, so on a normalising volume it also proves that
+  // recording NFD names and writing them back is faithful rather than lossy.
+  {
+    const uniDir = path.join(base, 'unicode');
+    const uniSrc = path.join(uniDir, 'src');
+    fs.mkdirSync(uniSrc, {recursive: true});
+    // One spelling per distinct name: a tree holding both NFC and NFD of the same
+    // name is the portability collision tested separately below, not a round trip.
+    const uniNames = [
+      'caf\u00e9.txt',            // composed
+      'n\u0303o.txt',              // decomposed, a different name
+      '\u4e2d\u6587.txt',          // CJK
+      '\ud83c\udf89 party.txt',    // emoji, outside the BMP
+      '\u05e9\u05dc\u05d5\u05dd.txt', // RTL
+      'a\u200db.txt',              // zero-width joiner
+      'sp ace.txt', 'UPPER.txt', '\u00c4rger.txt',
+    ];
+    for (const name of uniNames) fs.writeFileSync(path.join(uniSrc, name), 'content of ' + name);
+    const uniSnap = path.join(uniDir, 's.json');
+    backup(uniSrc, uniSnap);
+    const uniOut = path.join(uniDir, 'out');
+    restore(uniSnap, uniOut);
+    const contents = (dir) => fs.readdirSync(dir)
+      .map((name) => fs.readFileSync(path.join(dir, name)).toString()).sort();
+    assert.deepEqual(contents(uniOut), contents(uniSrc), 'unicode tree must round-trip by content');
+    // Names may be normalised by the volume on the way in, so compare after NFC.
+    const folded = (dir) => fs.readdirSync(dir).map((name) => name.normalize('NFC')).sort();
+    assert.deepEqual(folded(uniOut), folded(uniSrc), 'unicode tree must round-trip by name');
+  }
+
+  // Two files that differ only in case are two files on Linux and one on a
+  // case-insensitive volume. Restoring must refuse rather than let one overwrite
+  // the other; the contents differ so an overwrite would be visible data loss.
+  const casePair = engine({files: [
+    {path: 'Report.txt', text: 'upper version'},
+    {path: 'report.txt', text: 'lower version'},
+  ]}).snapshot;
+  assert.equal(engine({operation: 'audit', snapshot: casePair}).valid, true,
+    'a case-differing pair is a valid snapshot');
+  const casePairFile = path.join(base, 'case-pair.json');
+  fs.writeFileSync(casePairFile, JSON.stringify(casePair));
+  const casePairTarget = path.join(base, 'case-pair-out');
+  assert.throws(() => restore(casePairFile, casePairTarget), /Case folding|normalization/i);
+  assert.equal(fs.existsSync(casePairTarget), false, 'nothing may be written for a case collision');
+
   // Names that collide only after Unicode normalization cannot be restored to a
   // normalizing filesystem; the adapter refuses before writing anything.
   const colliding = engine({files: [
@@ -287,7 +333,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, case and normalization collision rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

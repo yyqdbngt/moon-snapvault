@@ -62,6 +62,8 @@ moon test --target js
 moon test --target wasm
 moon test --target wasm-gc
 moon test --target native  # requires a C compiler
+# CI also runs the host checks on macOS, whose default volume is case-insensitive
+# and Unicode-normalising: that is where the path portability rules are exercised.
 moon build --target js
 node scripts/check.mjs
 python -B scripts/reference.py
@@ -78,7 +80,7 @@ There are 86 MoonBit test declarations and 64 checked fixture cases in `tests/ca
 
 ## Current boundaries
 
-Each JSON snapshot is self contained, even when previous content is unchanged; `new_object_bytes` is a content statistic, not the physical archive size saved. Format 2 stores object bytes as base64, so a 1 MiB incompressible file becomes about 1.33 MiB of JSON (format 1 needed 3.6 MiB). The host adapter caps a backup at 8 MiB of source bytes by default, overridable with `SNAPVAULT_ADAPTER_LIMIT_BYTES`; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. Mode bits are applied with `chmod` after each write, so the process umask cannot clear them. Names that collide only after Unicode normalization or case folding are rejected by the adapter before the destination is created. A failed write retains the new partial directory for inspection. Audits cover every stored object, so `create` with a `previous` snapshot and `restore` both pay for a full verification of that snapshot. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
+Each JSON snapshot is self contained, even when previous content is unchanged; `new_object_bytes` is a content statistic, not the physical archive size saved. Format 2 stores object bytes as base64, so a 1 MiB incompressible file becomes about 1.33 MiB of JSON (format 1 needed 3.6 MiB). The host adapter caps a backup at 8 MiB of source bytes by default, overridable with `SNAPVAULT_ADAPTER_LIMIT_BYTES`; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. Mode bits are applied with `chmod` after each write, so the process umask cannot clear them. Names that collide only after Unicode normalization or case folding are rejected by the adapter before the destination is created; the core deliberately accepts such snapshots, because whether the names collide depends on the destination filesystem, not on the data. A failed write retains the new partial directory for inspection. Audits cover every stored object, so `create` with a `previous` snapshot and `restore` both pay for a full verification of that snapshot. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
 
 See [source and dependency attribution](THIRD_PARTY.md). This release does not establish competition eligibility or organizer acceptance.
 

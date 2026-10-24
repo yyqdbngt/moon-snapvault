@@ -113,12 +113,25 @@ test "unsafe path a/../b" {
 }
 
 ///|
-test "case collision" {
+test "case collision is a portability question, not a validity one" {
+  // `A` and `a` are two files on Linux, so the snapshot has to be able to hold
+  // both; refusing them here made such a directory impossible to back up. The
+  // writer rejects the pair instead, because only it knows the destination
+  // filesystem.
+  let result = run(
+    parse_value(
+      "{\"files\":[{\"path\":\"A\",\"text\":\"x\"},{\"path\":\"a\",\"text\":\"y\"}]}",
+    ),
+  )
+  let snapshot = get(result, "snapshot")
+  assert_eq(arr(get(snapshot, "files")).length(), 2)
+  assert_eq(get(audit_snapshot(snapshot), "valid"), Bool(true))
+  // An exact duplicate is still a contradiction and is still refused.
   let failed = try {
     ignore(
       run(
         parse_value(
-          "{\"files\":[{\"path\":\"A\",\"text\":\"x\"},{\"path\":\"a\",\"text\":\"y\"}]}",
+          "{\"files\":[{\"path\":\"A\",\"text\":\"x\"},{\"path\":\"A\",\"text\":\"y\"}]}",
         ),
       ),
     )
