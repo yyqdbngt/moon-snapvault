@@ -45,9 +45,10 @@ resolves the published 0.2.0 until a release is published.
   Linux backup is 190 ms there and 343 ms here. The factor of two absorbs that, which is why
   the threshold cannot be tightened much further without making the check machine-specific.
 - A platform with no baseline gets its numbers measured and printed rather than a silent skip,
-  so they appear in that platform's CI log. Windows is deliberately in that state: its
-  `fsync` and file-system behaviour differ enough that a borrowed baseline would be worse
-  than none, and the job prints the timings so one can be recorded from the log.
+  so they appear in that platform's CI log. Windows was in that state for one run - it
+  printed 240/220/805/755 ms - and now has the same treatment as the others, recorded from its
+  own runner rather than borrowed. A borrowed baseline would have been wrong by up to a factor
+  of two, which is the entire margin the check allows.
 - Both recorded baselines were checked against their runners: macOS measures 145/141/480/383
   ms against a recorded 140/130/500/400, which is the same machine within noise.
   `README.md` prose still has to be updated by hand, and the script says so when it fails.

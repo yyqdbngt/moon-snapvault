@@ -154,15 +154,14 @@ further without making the check machine-specific.
 
 When a platform has no baseline, the check measures and prints its numbers rather than
 skipping silently, so the figures needed to record one appear in that platform's CI log. The
-absence of a baseline is not a regression, so it exits 0. Windows is in that state: the job
-runs the check and prints the timings, and no baseline is recorded until someone reads them
-and adds one. That is deliberate rather than an oversight - Windows `fsync` and its file
-system behave differently enough that a baseline borrowed from another platform would be
-worse than none.
+absence of a baseline is not a regression, so it exits 0.
 
-Linux and macOS baselines come from their CI runners, which is where the gate runs: the
-macOS runner measures 145/141/480/383 ms against a recorded 140/130/500/400, close enough
-that the numbers are describing the same machine. And the figures in `README.md` are copied by hand from a measurement, so
+All three platforms now have one, each recorded from its own CI runner rather than borrowed:
+Windows measures 240/220/805/755 ms for the four cases, Linux 190/180/750/630, macOS
+140/130/500/400. A borrowed baseline would have been wrong by up to a factor of two, which is
+the entire margin the check allows. The recorded figures were each re-checked against a run
+of the same job: macOS measured 145/141/480/383 against 140/130/500/400, which is the same
+machine within noise. And the figures in `README.md` are copied by hand from a measurement, so
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 

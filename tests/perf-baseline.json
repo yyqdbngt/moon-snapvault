@@ -12,6 +12,12 @@
       "restore 1 MiB": 130,
       "backup 8 MiB": 500,
       "restore 8 MiB": 400
+    },
+    "win32": {
+      "backup 1 MiB": 240,
+      "restore 1 MiB": 220,
+      "backup 8 MiB": 805,
+      "restore 8 MiB": 755
     }
   }
 }
