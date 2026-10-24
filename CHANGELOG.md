@@ -28,6 +28,18 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### A snapshot crosses backends unchanged
+
+- The library compiles for four backends, so a snapshot written on one can be read on another.
+  Nothing tested that exchange: the CLI is JS only, so the fixtures never leave it and the
+  per-backend tests only compared each to itself.
+- `serialization_wbtest.mbt` now asserts a checksum taken from the published 0.2.0 for a
+  three-file tree, and all four backends compute it on every build. Since the checksum hashes
+  the canonical manifest, agreeing on it means agreeing on every byte the format depends on;
+  since the constant came from MoonCakes, the one assertion covers the backends, the formats
+  and the published version together.
+- Verified: changing the expected value by one nibble fails the test on the backend that ran it.
+
 ### Backward compatibility with the published 0.2.0
 
 - `tests/compat/` holds two snapshots produced by `yyqdbngt/moon_snapvault@0.2.0` from

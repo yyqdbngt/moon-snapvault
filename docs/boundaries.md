@@ -98,6 +98,15 @@ implementation.
 Changing `canonical` to a plain lexicographic sort makes the test fail on every backend,
 which is the failure mode the claim is about.
 
+The library compiles for four backends, so a snapshot written by a program on one can be read
+by a program on another. Nothing tested that exchange - the CLI is JS only, so the fixtures
+never leave it. The closing test asserts a checksum that came from the *published* 0.2.0 for a
+three-file tree, and every backend computes it: `9d28a7f6...`. Because the checksum hashes the
+canonical manifest, agreement there means agreement on every byte the format depends on, and
+because the constant came from MoonCakes rather than from this implementation, one assertion
+covers three things - the four backends agree, the formats agree, and the current code agrees
+with what was published.
+
 ### Every field, mutated every way
 
 `robustness.py` asks whether an input yields one JSON object and a clean exit; it never

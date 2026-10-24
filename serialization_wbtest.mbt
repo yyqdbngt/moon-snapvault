@@ -121,3 +121,53 @@ test "digest of a canonical form is stable" {
   )
   assert_eq(canonical(Object(Map([("a", Number(1.0))]))), "{\"a\":1}")
 }
+
+///|
+/// A snapshot written on one backend must be readable on another.
+///
+/// The library compiles for JS, wasm, wasm-gc and native, so a program on any of them can
+/// write a snapshot file that another reads. The tests above pin per-backend output, but
+/// nothing wrote a snapshot on one backend and read it on another, which is what a user does
+/// when a file moves between builds.
+///
+/// The checksum is the vehicle: it hashes the canonical manifest, so two backends that agree
+/// on it agree on every byte the format depends on. The constant is not a value this
+/// implementation chose - it is what `yyqdbngt/moon_snapvault@0.2.0`, installed from
+/// MoonCakes, wrote for the same tree. So this asserts three things at once: the four
+/// backends agree, the formats agree, and the current code agrees with the published one.
+test "the same tree gets the published checksum on every backend" {
+  let created = create_snapshot(
+    [
+      Object(Map([("path", String("a.txt")), ("text", String("abc"))])),
+      Object(Map([("path", String("docs/b.md")), ("text", String("de"))])),
+      Object(
+        Map([
+          ("path", String("bin.dat")),
+          ("bytes", Array([Number(0.0), Number(255.0), Number(7.0)])),
+        ]),
+      ),
+    ],
+    format=1,
+  )
+  let snapshot = match created {
+    Object(fields) =>
+      match fields.get("snapshot") {
+        Some(value) => value
+        None => abort("no snapshot")
+      }
+    _ => abort("not an object")
+  }
+  assert_eq(
+    str(get(snapshot, "checksum")),
+    "9d28a7f6ddbe4d406b5cf642ad50bfe64ef7dcf7446c24e0eda8315c8bca9ac7",
+  )
+  // And the payloads are the decimal layout 0.2.0 wrote, not base64.
+  let objects = match get(snapshot, "objects") {
+    Object(fields) => fields
+    _ => abort("no objects")
+  }
+  assert_eq(
+    objects[digest(@utf8.encode("abc"))],
+    Array([Number(97.0), Number(98.0), Number(99.0)]),
+  )
+}
