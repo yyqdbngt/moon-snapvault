@@ -39,6 +39,7 @@ jobs:
       - run: moon build --target js
       - run: moon build --target js --release
       - run: node scripts/coverage.mjs
+      - run: node scripts/perf-check.mjs
       - run: node scripts/stats.mjs
       - run: node scripts/interface.mjs
       - run: node scripts/consumer-smoke.mjs

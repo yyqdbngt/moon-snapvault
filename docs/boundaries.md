@@ -125,6 +125,27 @@ a different but internally consistent snapshot; and a mode change with a recompu
 checksum is reported valid, which is the documented limit of an integrity check that is
 not a signature.
 
+### Performance figures are checked, loosely on purpose
+
+The README quotes timings, which were hand-copied from a benchmark run and checked by
+nothing. They survived a change that added an `fsync` to every write - exactly the kind of
+change that could have made them ten times wrong. Re-measuring showed the effect was 3-5%,
+inside this host's noise, so the quoted figures were still true. That was luck rather than
+process, which is why `scripts/perf-check.mjs` now exists.
+
+It compares four cases - backup and restore at 1 MiB and 8 MiB, the sizes the README quotes
+- against a recorded baseline, and fails at a factor of two. A percentage threshold would be
+worse than none: the same code varies by a tenth run to run on a shared machine, so a strict
+check would fail at random and be turned off within a week. Two caught a real 2.2x and 3.5x
+regression during testing; ten percent of noise would have caught neither.
+
+Two limits are stated rather than hidden. The baseline is recorded per platform, and the
+check skips with a message when it runs elsewhere, because timings are not comparable across
+operating systems and a check that fails for a reason that is not a regression is a check
+that gets deleted. And the figures in `README.md` are copied by hand from a measurement, so
+the script can catch a drift of a factor but not a stale sentence - updating the prose is
+still a manual step, noted in the script's own output.
+
 ### Coverage is measured, and may only widen
 
 `moon test --target js --enable-coverage` reports which lines the white-box tests execute.

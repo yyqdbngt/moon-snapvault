@@ -28,6 +28,19 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Documented timings, re-measured and then guarded
+
+- The README's performance figures were hand-copied from a benchmark and checked by nothing.
+  They had survived the `fsync` change, which could plausibly have made them ten times wrong.
+  Re-measured, the effect was 3-5% - inside this host's noise - so the figures were still
+  true, and they are now stated with their measurement conditions.
+- `scripts/perf-check.mjs` compares backup and restore at 1 MiB and 8 MiB against a recorded
+  baseline and fails at a factor of two, which distinguishes a real regression from scheduler
+  noise. Verified by adding a per-file delay: 331 -> 741 ms and 1287 -> 4455 ms were reported.
+- The baseline is per platform; the check skips with a message elsewhere rather than failing
+  for a reason that is not a regression. `README.md` prose still has to be updated by hand,
+  and the script says so when it fails.
+
 ### Coverage, third pass: the remainder is defensive
 
 - Three more reachable arms tested: an object reused within one format 2 request, a file

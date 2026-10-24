@@ -37,6 +37,8 @@ fi
 moon build --target js >/dev/null
 moon build --target js --release >/dev/null
 node scripts/coverage.mjs
+# Timings quoted in the docs: a factor-of-two drift fails, percentage noise does not.
+node scripts/perf-check.mjs
 node scripts/stats.mjs
 node scripts/interface.mjs
 # A separate module compiled against the exported interface, which is the only way

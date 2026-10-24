@@ -1,0 +1,10 @@
+{
+  "note": "Fastest of three runs, milliseconds, on this host. The check fails at a factor of 2, not at a percentage, because that is the difference between a real regression and scheduler noise. Re-record with `node scripts/perf-check.mjs --write` after a deliberate change, and update the figures in README.md to match.",
+  "platform": "linux",
+  "milliseconds": {
+    "backup 1 MiB": 366,
+    "restore 1 MiB": 331,
+    "backup 8 MiB": 1449,
+    "restore 8 MiB": 1287
+  }
+}

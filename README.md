@@ -138,8 +138,8 @@ chain size that fits in memory.
 object once and dropping unreferenced ones; squashing to format 2 produces a file
 byte-identical to creating the same tree directly.
 
-A 3 MiB tree with one changed file: base snapshot 4.1 MB and 611 ms, delta 752 B
-and 685 ms - 0.02% of the base on disk, but priced like a full backup in time
+A 3 MiB tree with one changed file: base snapshot 4.1 MB and 647 ms, delta 752 B
+and 702 ms - 0.02% of the base on disk, but priced like a full backup in time
 because the base is re-verified before the delta is written. A 7 MiB tree works
 too: the adapter audits the chain in one request and sends a manifest-only parent
 in a second, so the delta no longer has to carry the base's payloads. Reading a delta
@@ -150,7 +150,7 @@ See `docs/incremental.md`.
 
 Snapshots are written as `"version": 2` with base64 object payloads. `"format": 1` still produces the old decimal layout, and both versions stay readable by `audit`, `restore`, `diff` and `retention`; a snapshot's version decides which payload encoding is accepted. `restore` reports `format` and `encoding`, and requests accept `content_base64` next to `text` and `bytes`.
 
-Measured on the reference host (moon 0.1.20261023, Node 20, release build): 1 MiB incompressible file 2396 -> 292 ms backup, 2081 -> 300 ms restore, snapshot 3.57 -> 1.33 MiB. 8 MiB backs up in 1.4 s and restores in 1.3 s. SHA-256 and base64 are implemented in this module now, at 61 MiB/s and about 300 ms per 8 MiB respectively. See `docs/snapshot-format.md` and `node scripts/bench.mjs`.
+Measured on the reference host (moon 0.1.20261023, Node 20, release build, fastest of five runs): 1 MiB incompressible file backs up in 296 ms and restores in 261 ms, snapshot 1.33 MiB. 8 MiB backs up in 1.42 s and restores in 1.30 s. Those figures include the `fsync` that makes a restore survive a power cut; with `SNAPVAULT_NO_FSYNC=1` the same runs are 3-5% faster, which is inside this host's noise. `scripts/perf-check.mjs` fails if any of them regresses by a factor of two. SHA-256 and base64 are implemented in this module now, at 61 MiB/s and about 300 ms per 8 MiB respectively. See `docs/snapshot-format.md` and `node scripts/bench.mjs`.
 
 `audit` now verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`. Before this revision `audit` accepted a snapshot whose unreferenced object did not match its key, while `retention` refused the same bytes and `create(previous=…)` under-counted `new_object_bytes`. The three operations now agree.
 
