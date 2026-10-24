@@ -17,6 +17,12 @@ mutations listed in [incremental snapshots](incremental.md), but it is not a
 proof and not a substitute for fuzzing the JSON parser itself; malformed JSON past
 the parser's own errors is out of scope.
 
+A delta may be built from a manifest-only parent plus a `known_objects` digest
+list, which is what keeps a large base inside one request. The core then cannot
+verify the base and says so with `base_verified: false`; the claim is checked when
+the snapshot is read, where a false declaration becomes `missing object`. Only the
+adapter's two-request path both fits and verifies.
+
 `retention` never plans to delete a snapshot that a kept snapshot's chain names:
 the link is promoted into `required_snapshots` instead, because its manifest is
 what makes the kept snapshot readable. A link supplied only through `parents`,

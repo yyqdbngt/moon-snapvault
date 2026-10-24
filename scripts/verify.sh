@@ -28,7 +28,10 @@ else
   moon test --target native | grep '^Total tests'
 fi
 
+# scripts/engine.mjs prefers a release artifact and falls back to debug, so both
+# are built: the host checks then measure the same code the benchmarks quote.
 moon build --target js >/dev/null
+moon build --target js --release >/dev/null
 node scripts/stats.mjs
 node scripts/check.mjs
 python3 -B scripts/reference.py

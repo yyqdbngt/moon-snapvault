@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {engine, engineText, checkRequestSize, safeFile} from './engine.mjs';
+import {engine, engineText, checkRequestSize, REQUEST_LIMIT, safeFile} from './engine.mjs';
 
 // Format 3 carries base64, about 4/3 of the source size, so the adapter can take
 // a larger tree while staying inside the core CLI's 16 MiB request cap.
@@ -33,6 +33,37 @@ function readSnapshot(file) {
 // parent, so the files themselves have to be supplied on both sides.
 function readChain(files) {
   return files.filter(Boolean).map(readSnapshot);
+}
+
+// A delta normally carries the new tree *and* the parent it reuses, which is what
+// puts a ceiling on how large a base one request can cover. The parent's payloads
+// are the expensive half, and the core needs only the digests that already exist,
+// so this path sends a manifest-only parent plus a digest list.
+//
+// The chain is audited in its own request first: the base is still verified before
+// a delta is built on it, which the core cannot do for a manifest-only parent.
+export function deltaFromDigests(files, parentSnapshot, parents, sourceBytes = 0) {
+  engineText(JSON.stringify({
+    operation: 'audit', snapshot: parentSnapshot, parents,
+  }));
+  const known = [...new Set([
+    ...Object.keys(parentSnapshot.objects || {}),
+    ...parents.flatMap((item) => Object.keys(item.objects || {})),
+  ])];
+  const slim = {
+    version: parentSnapshot.version,
+    parent: parentSnapshot.parent ?? null,
+    files: parentSnapshot.files,
+    checksum: parentSnapshot.checksum,
+  };
+  const text = JSON.stringify({
+    operation: 'create', format: 3, files, previous: slim, parents, known_objects: known,
+  });
+  return engineText(checkRequestSize(text, {
+    source: sourceBytes,
+    // Only the digests travel, at 64 bytes each plus a separator.
+    digests: known.length * 67,
+  }));
 }
 
 // `chain` lists the snapshots this one builds on, oldest or newest first; the
@@ -71,11 +102,12 @@ export function backup(source, destination, previous, chain = []) {
     files,
     ...(previous ? {previous: parentSnapshot, parents} : {}),
   };
-  const result = send(request, {
-    source: files.reduce((sum, file) => sum + file.content_base64.length, 0),
-    parent: parentSnapshot ? JSON.stringify(parentSnapshot).length : 0,
-    chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
-  });
+  const sourceBytes = files.reduce((sum, file) => sum + file.content_base64.length, 0);
+  const parentBytes = parentSnapshot ? JSON.stringify(parentSnapshot).length : 0;
+  const chainBytes = parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0);
+  const result = JSON.stringify(request).length <= REQUEST_LIMIT
+    ? engineText(JSON.stringify(request))
+    : deltaFromDigests(files, parentSnapshot, parents, sourceBytes);
   const tmp = output + '.' + randomUUID() + '.tmp';
   try {
     fs.writeFileSync(tmp, JSON.stringify(result.snapshot), {flag: 'wx'});
@@ -87,6 +119,10 @@ export function backup(source, destination, previous, chain = []) {
     format: result.snapshot.version,
     parent: result.snapshot.parent ?? null,
     snapshot_bytes: fs.statSync(output).size,
+    // The core reports false when a delta was built from a digest list instead of
+    // the parent's payloads. The chain was still audited first, so the adapter can
+    // say so; the pair is what a caller should look at, not either field alone.
+    chain_verified: parentSnapshot !== null,
   };
 }
 

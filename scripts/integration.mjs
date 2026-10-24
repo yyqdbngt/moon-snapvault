@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import {backup, restore, squash} from './filesystem.mjs';
+import {backup, restore, squash, deltaFromDigests} from './filesystem.mjs';
 import {engine} from './engine.mjs';
 
 const base = fs.mkdtempSync(path.join(os.tmpdir(), 'snapvault-integration-'));
@@ -82,6 +82,66 @@ try {
   assert.throws(() => restore(three, brokenTarget, [brokenFile, two]));
   assert.equal(fs.existsSync(brokenTarget), false);
 
+  // The path the adapter takes when a delta request would not fit: a manifest-only
+  // parent plus the chain's digests has to produce the same snapshot as sending
+  // the parent whole, and it has to restore through the chain.
+  const slimFiles = [];
+  (function walk(directory, relative) {
+    for (const entry of fs.readdirSync(directory, {withFileTypes: true})) {
+      const name = relative ? relative + '/' + entry.name : entry.name;
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) walk(absolute, name);
+      else if (entry.isFile()) {
+        slimFiles.push({
+          path: name,
+          content_base64: fs.readFileSync(absolute).toString('base64'),
+          mode: fs.statSync(absolute).mode & 0o777,
+        });
+      }
+    }
+  })(source, '');
+  const slimStats = deltaFromDigests(slimFiles, read(two), [read(one)]);
+  const withParent = engine({
+    operation: 'create', format: 3, previous: read(two), parents: [read(one)], files: slimFiles,
+  });
+  assert.equal(slimStats.snapshot.checksum, withParent.snapshot.checksum,
+    'the digest path must build the same snapshot');
+  assert.equal(JSON.stringify(slimStats.snapshot.objects),
+    JSON.stringify(withParent.snapshot.objects));
+  // The core could not verify the base, and says so instead of claiming it did.
+  assert.equal(slimStats.statistics.base_verified, false);
+  assert.equal(withParent.statistics.base_verified, true);
+  const slimFile = path.join(base, 'slim.json');
+  fs.writeFileSync(slimFile, JSON.stringify(slimStats.snapshot));
+  const slimTarget = path.join(base, 'slim-out');
+  const slimRestored = restore(slimFile, slimTarget, [two, one]);
+  assert.equal(slimRestored.chain_depth, 3);
+  assert.deepEqual(fs.readFileSync(path.join(slimTarget, 'nested/a.bin')), Buffer.from([9, 9, 9]));
+
+  // A digest the chain does not have must fail at read time, not silently.
+  // deltaFromDigests only ever declares what the chain really holds, so the claim
+  // is forged here to exercise the reader's defence.
+  const parentFile = read(two);
+  const invented = crypto.createHash('sha256').update('never stored').digest('hex');
+  const lie = engine({
+    operation: 'create', format: 3, files: [
+      ...slimFiles,
+      {path: 'invented.bin', content_base64: Buffer.from('never stored').toString('base64'), mode: 0o644},
+    ],
+    previous: {version: parentFile.version, parent: parentFile.parent ?? null,
+      files: parentFile.files, checksum: parentFile.checksum},
+    parents: [read(one)],
+    known_objects: [
+      ...Object.keys(parentFile.objects), ...Object.keys(read(one).objects), invented,
+    ],
+  });
+  assert.equal(invented in lie.snapshot.objects, false);
+  const lieFile = path.join(base, 'lie.json');
+  fs.writeFileSync(lieFile, JSON.stringify(lie.snapshot));
+  assert.equal(engine({operation: 'audit', snapshot: lie.snapshot, parents: [read(two), read(one)]}).valid, false);
+  assert.throws(() => restore(lieFile, path.join(base, 'lie-out'), [two, one]));
+  assert.equal(fs.existsSync(path.join(base, 'lie-out')), false);
+
   // Squashing compacts the whole chain into one self-contained file that no
   // longer needs its parents, and selects on the way out.
   const squashedFile = path.join(base, 'squashed.json');
@@ -156,7 +216,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes and portable-path rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }

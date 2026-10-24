@@ -1741,5 +1741,236 @@
       ]
     },
     "error": false
+  },
+  {
+    "name": "declared objects give the same delta as sending the parent",
+    "request": {
+      "format": 3,
+      "previous": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "files": [
+        {
+          "path": "a.txt",
+          "text": "abc"
+        },
+        {
+          "path": "b.txt",
+          "text": "zz"
+        }
+      ],
+      "known_objects": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ]
+    },
+    "expected": {
+      "snapshot/checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c",
+      "snapshot/objects/4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno=",
+      "statistics/objects_stored": 1,
+      "statistics/objects_reused": 1,
+      "statistics/reused_object_bytes": 3,
+      "statistics/base_verified": false
+    },
+    "error": false
+  },
+  {
+    "name": "a declared-objects delta still audits against the chain",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151": "eno="
+        },
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ]
+    },
+    "expected": {
+      "valid": true,
+      "chain_depth": 2,
+      "objects_total": 1,
+      "objects_inherited": 1,
+      "objects_checked": 2
+    },
+    "error": false
+  },
+  {
+    "name": "a manifest-only parent needs its digests",
+    "request": {
+      "format": 3,
+      "previous": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "files": [
+        {
+          "path": "a.txt",
+          "text": "abc"
+        },
+        {
+          "path": "b.txt",
+          "text": "zz"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "known objects need a parent",
+    "request": {
+      "format": 3,
+      "files": [
+        {
+          "path": "a.txt",
+          "text": "abc"
+        },
+        {
+          "path": "b.txt",
+          "text": "zz"
+        }
+      ],
+      "known_objects": [
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "a malformed known digest is refused",
+    "request": {
+      "format": 3,
+      "previous": {
+        "version": 3,
+        "parent": null,
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+      },
+      "files": [
+        {
+          "path": "a.txt",
+          "text": "abc"
+        },
+        {
+          "path": "b.txt",
+          "text": "zz"
+        }
+      ],
+      "known_objects": [
+        "not-a-digest"
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "a false claim is caught when the snapshot is read",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 3,
+        "parent": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa",
+        "files": [
+          {
+            "path": "a.txt",
+            "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "size": 3,
+            "mode": 420
+          },
+          {
+            "path": "b.txt",
+            "digest": "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151",
+            "size": 2,
+            "mode": 420
+          }
+        ],
+        "objects": {},
+        "checksum": "fc90c4eb2b9ef5d34a13820f5146bd05237bb6b7e92fc01ed0a1c3f9a863ab0c"
+      },
+      "parents": [
+        {
+          "version": 3,
+          "parent": null,
+          "files": [
+            {
+              "path": "a.txt",
+              "digest": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+              "size": 3,
+              "mode": 420
+            }
+          ],
+          "objects": {
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad": "YWJj"
+          },
+          "checksum": "ac1eb291ecaf8fa90c956c5ff745d60e697ae945d071f3eabaabc53776e178fa"
+        }
+      ]
+    },
+    "expected": {
+      "valid": false,
+      "issues/0/reason": "missing object",
+      "issues/0/path": "b.txt"
+    },
+    "error": false
   }
 ]

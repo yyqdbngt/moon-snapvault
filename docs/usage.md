@@ -71,6 +71,10 @@ objects the chain lacks; the manifest still lists every path.
 | `{"operation": "restore", ..., "paths": ["docs"]}` | only `docs` and below, `selected`/`total_files` |
 | `{"operation": "restore", ..., "paths": ["nope"]}` | error: `restore path not found in snapshot` |
 
+| `{"format": 3, "previous": <manifest-only>, "known_objects": [...]}` | same delta without the parent payloads; reports `base_verified: false` |
+| `{"format": 3, "previous": <manifest-only>, "files": [...]}` | error: the digests have to be declared |
+| `{"format": 3, "files": [...], "known_objects": [...]}` | error: declared digests need a parent to point at |
+
 `parents` may be supplied in any order; links are matched by checksum. See
 [incremental snapshots](incremental.md).
 

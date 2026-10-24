@@ -312,6 +312,24 @@ def run_iteration(rng, index):
         if rng.random() < 0.3 and len(changed) > 1:
             changed.pop()
     delta_doc, _ = call({'format': 3, 'previous': base, 'files': changed}, label='create-delta')
+    # The same delta built from a manifest-only parent plus a digest list must be
+    # the same snapshot, and is what the adapter sends when the request would not
+    # fit otherwise.
+    slim_parent = {k: base[k] for k in ('version', 'files', 'checksum')}
+    if 'parent' in base:
+        slim_parent['parent'] = base['parent']
+    slim_doc, _ = call({
+        'format': 3,
+        'previous': slim_parent,
+        'files': changed,
+        'known_objects': sorted(base['objects']),
+    }, label='create-delta-slim')
+    check(tag + ' delta/slim-equals-full',
+          canonical(slim_doc['snapshot']) == canonical(delta_doc['snapshot']),
+          'a declared-objects delta differs from the full-parent delta')
+    check(tag + ' delta/slim-unverified',
+          slim_doc['statistics']['base_verified'] is False,
+          'the core claimed to verify payloads it never received')
     delta = delta_doc['snapshot']
     check(tag + ' delta/parent', delta['parent'] == base['checksum'])
     check(tag + ' delta/diff', call({'operation': 'diff', 'old': base, 'new': delta},
@@ -364,6 +382,31 @@ def run_iteration(rng, index):
         if expected_reason:
             check(f'{tag} mutate/{label}/expected', expected_reason in core_reasons,
                   f'{expected_reason} not in {sorted(core_reasons)}')
+
+    # --- declaring a digest the chain lacks -------------------------------
+    # Write time cannot detect this; the reader has to, because that is where the
+    # payload would have arrived.
+    if not changed:
+        return
+    lie_target = max(changed, key=lambda f: len(base64.b64decode(f['content_base64'])))
+    if base64.b64decode(lie_target['content_base64']) and \
+            sha(base64.b64decode(lie_target['content_base64'])) not in base['objects']:
+        lied, _ = call({
+            'format': 3,
+            'previous': slim_parent,
+            'files': changed,
+            'known_objects': sorted(base['objects']) + [sha(base64.b64decode(lie_target['content_base64']))],
+        }, label='create-delta-lie')
+        lied_report, _ = call({'operation': 'audit', 'snapshot': lied['snapshot'],
+                               'parents': [base]}, label='audit-lie')
+        expected_valid, reasons = evaluate(lied['snapshot'], [base])
+        check(tag + ' lie/verdict', lied_report['valid'] == expected_valid,
+              f"core {lied_report['valid']} oracle {expected_valid}")
+        check(tag + ' lie/fails-closed', lied_report['valid'] is False and 'missing object' in reasons,
+              str(sorted(reasons)))
+        _, error = call({'operation': 'restore', 'snapshot': lied['snapshot'],
+                         'parents': [base]}, expect_error=True, label='restore-lie')
+        check(tag + ' lie/restore-refused', 'corrupted' in error, error)
 
     # --- a missing chain link -----------------------------------------------
     report, _ = call({'operation': 'audit', 'snapshot': delta}, label='audit-no-chain')

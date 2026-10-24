@@ -73,7 +73,7 @@ node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 60 MoonBit test declarations and 49 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 68 MoonBit test declarations and 55 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`, `base64`) or separately written chain and reachability logic. `scripts/fuzz.py` goes further: it generates seeded random trees and chains, recomputes every expected value from the snapshot JSON alone, and compares `create`, `audit`, `restore`, `diff`, `squash` and `retention` against that oracle, including a set of deliberate mutations whose verdict it predicts independently. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
@@ -109,7 +109,9 @@ byte-identical to creating the same tree directly.
 
 A 3 MiB tree with one changed file: base snapshot 4.1 MB and 611 ms, delta 752 B
 and 685 ms - 0.02% of the base on disk, but priced like a full backup in time
-because the base is re-verified before the delta is written. Reading a delta
+because the base is re-verified before the delta is written. A 7 MiB tree works
+too: the adapter audits the chain in one request and sends a manifest-only parent
+in a second, so the delta no longer has to carry the base's payloads. Reading a delta
 without its chain fails with `missing parent snapshot` naming the checksum.
 See `docs/incremental.md`.
 

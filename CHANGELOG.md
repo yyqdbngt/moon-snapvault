@@ -28,6 +28,22 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Deltas over a large base
+
+- `create` accepts `known_objects`, a list of digests the chain already stores,
+  and a `previous` with no `objects` member. Together they let a delta be built
+  without sending the parent's payloads, which lifts the ceiling the 16 MiB
+  request cap put on incremental backups. The result is byte-identical to the
+  full-parent delta.
+- `statistics.base_verified` says whether the core could check the base. It is
+  `false` for the declared-objects path rather than a claim of verification.
+- A false declaration fails closed: `audit` reports `missing object` and
+  `restore` refuses, so nothing is silently lost.
+- Adapter: when a delta request would exceed the cap, it audits the chain in one
+  request and sends the manifest-only parent in a second. A 7 MiB tree with one
+  changed file now produces a 1267-byte delta (9.8 MB base) and restores
+  verified; previously that delta was rejected outright.
+
 ### Retention and restore correctness
 
 - `retention` no longer proposes deleting a snapshot that a kept snapshot's chain

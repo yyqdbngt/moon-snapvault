@@ -137,11 +137,37 @@ The delta is 0.02% of the base on disk. It is not cheaper in time: the base is
 re-verified before the delta is written, which is the same work as a full
 backup, and the request carries the new tree and the parent snapshot together.
 
-That last point is the practical limit. The core CLI caps a request at 16 MiB,
-and a delta request holds both the source bytes (base64, ~1.33x) and the parent
-snapshot. Roughly, `source * 1.33 + parent_snapshot + manifest <= 16 MiB`, so a
-delta over an 8 MiB base is not possible in one request; the adapter reports the
-exact split instead of failing with "input exceeds 16 MiB".
+## Declaring objects instead of sending them
+
+A delta request would otherwise hold the new tree *and* every payload the parent
+stores, which puts a ceiling on how large a base one request can cover. The
+payloads are the expensive half and the core only needs to know which digests
+already exist, so it also accepts a **manifest-only parent** plus a digest list:
+
+```json
+{"format": 3,
+ "previous": {"version": 3, "parent": null, "files": [...], "checksum": "..."},
+ "known_objects": ["<sha256>", "..."],
+ "files": [ ... ]}
+```
+
+The two forms produce the same snapshot - the checksum is identical, because the
+checksum covers the manifest and not the payloads. What differs is what the core
+can promise: with the payloads present it verifies the base before building on
+it and reports `"base_verified": true`; with a digest list it cannot, and reports
+`"base_verified": false` instead of claiming a check it did not perform.
+
+That is a real weakening, so it is fail-closed: a caller that declares a digest
+the chain does not have produces a snapshot whose file cannot be resolved, and
+`audit` reports `missing object` while `restore` refuses. Nothing is silently
+lost, and nothing is silently wrong.
+
+The adapter uses this only when it has to. It builds the ordinary request, and if
+it would exceed the 16 MiB request cap it audits the chain in one request and
+then sends the manifest-only parent with the chain's digests in a second. Both
+requests fit, and the base is still verified before the delta exists. A 7 MiB
+tree with one changed file: base snapshot 9.8 MB, delta 1267 bytes, restore
+verified. Without this path that delta was not possible at all.
 
 ## Host adapter
 

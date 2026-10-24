@@ -497,10 +497,38 @@ pub fn diff_snapshots(old : Value, new : Value) -> Value raise {
 }
 
 ///|
+/// The objects a snapshot stores, or `None` when the value carries no `objects`
+/// member at all. A manifest-only snapshot is useful as a parent reference: its
+/// checksum still verifies, because the checksum covers only the manifest.
+fn stored_objects(snapshot : Value) -> Map[String, Value]? raise {
+  match get(snapshot, "objects") {
+    Null => None
+    Object(fields) => Some(fields)
+    _ => raise InputError("snapshot objects must be an object")
+  }
+}
+
+///|
+/// Digests a caller asserts are already stored somewhere in the chain. Each must
+/// look like a SHA-256 identifier; whether the chain really holds them is checked
+/// when the snapshot is read, because that is where the payloads actually arrive.
+fn declared_objects(known : Array[String]) -> Map[String, Bool] raise {
+  let declared : Map[String, Bool] = Map([])
+  for digest in known {
+    if !is_object_id(digest) {
+      raise InputError("invalid known object identifier")
+    }
+    declared[digest] = true
+  }
+  declared
+}
+
+///|
 pub fn create_snapshot(
   source : Array[Value],
   previous~ : Value = Null,
   parents~ : Array[Value] = [],
+  known_objects~ : Array[String] = [],
   format~ : Int32 = 2,
 ) -> Value raise {
   if format != 1 && format != 2 && format != 3 {
@@ -524,26 +552,55 @@ pub fn create_snapshot(
   // Digests the previous chain already stores. With format 3 those objects are
   // left out of the new snapshot entirely, which is what makes it incremental.
   let prior : Map[String, Bool] = Map([])
+  let declared = declared_objects(known_objects)
+  if !declared.is_empty() && parent_id is None {
+    raise InputError("known_objects needs a previous snapshot to point at")
+  }
+  let mut base_verified = true
   if previous != Null {
-    if get(audit_with(previous, parents), "valid") != Bool(true) {
-      raise InputError("previous snapshot is corrupted")
+    // A manifest-only parent cannot be audited here: its payloads never arrived,
+    // which is the whole point of sending it that way. Its checksum is still
+    // checked, so the link this snapshot records is meaningful, and the reader
+    // verifies the payloads when it has the chain.
+    let manifest_only = match stored_objects(previous) {
+      Some(_) => false
+      None => true
     }
-    if format >= 3 {
-      let (links, missing) = resolve_chain(previous, parents)
-      match missing {
-        Some(hash) => raise InputError("missing parent snapshot " + hash)
-        None => ()
+    if manifest_only {
+      let (_, _, parent_files) = manifest(previous)
+      // An empty declaration is only wrong when the parent lists files: those
+      // files have digests, so the payloads exist somewhere and the caller has
+      // simply forgotten to say where. An empty parent has nothing to declare.
+      if declared.is_empty() && !parent_files.is_empty() {
+        raise InputError(
+          "previous snapshot without objects needs known_objects",
+        )
       }
-      for link in links {
-        for hash, _ in link.objects {
+      base_verified = false
+    } else {
+      if get(audit_with(previous, parents), "valid") != Bool(true) {
+        raise InputError("previous snapshot is corrupted")
+      }
+      if format >= 3 {
+        let (links, missing) = resolve_chain(previous, parents)
+        match missing {
+          Some(hash) => raise InputError("missing parent snapshot " + hash)
+          None => ()
+        }
+        for link in links {
+          for hash, _ in link.objects {
+            prior[hash] = true
+          }
+        }
+      } else {
+        for hash, _ in obj(get(previous, "objects")) {
           prior[hash] = true
         }
       }
-    } else {
-      for hash, _ in obj(get(previous, "objects")) {
-        prior[hash] = true
-      }
     }
+  }
+  for hash, _ in declared {
+    prior[hash] = true
   }
   for file in source {
     let path = str(get(file, "path"))
@@ -611,6 +668,7 @@ pub fn create_snapshot(
         ("deduplicated_bytes", Number(bytes_total - unique_bytes)),
         ("objects_stored", Number(objects.length().to_double())),
         ("objects_reused", Number(objects_reused.to_double())),
+        ("base_verified", Bool(base_verified)),
       ]),
     ),
     (
@@ -642,6 +700,17 @@ fn optional_format(request : Value) -> Int32? raise {
     Number(n) if n == 2.0 => Some(2)
     Number(n) if n == 3.0 => Some(3)
     _ => raise InputError("unsupported snapshot format")
+  }
+}
+
+///|
+/// `known_objects` lists digests the chain already holds, so a delta does not have
+/// to carry the payloads it reuses.
+fn request_known_objects(request : Value) -> Array[String] raise {
+  match get(request, "known_objects") {
+    Null => []
+    Array(items) => items.map(item => str(item))
+    _ => raise InputError("known_objects must be an array of digests")
   }
 }
 
@@ -858,6 +927,7 @@ pub fn run(request : Value) -> Value raise {
         arr(get(request, "files")),
         previous=get(request, "previous"),
         parents=request_parents(request),
+        known_objects=request_known_objects(request),
         format=requested_format(request),
       )
     "audit" => audit_with(get(request, "snapshot"), request_parents(request))

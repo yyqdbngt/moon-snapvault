@@ -28,8 +28,11 @@ def run(request, error=False):
     return json.loads(result.stdout)
 
 
-def sha(text):
-    return hashlib.sha256(text.encode()).hexdigest()
+def sha(data):
+    """Digest of text or bytes, so callers need not care which they hold."""
+    if isinstance(data, str):
+        data = data.encode()
+    return hashlib.sha256(data).hexdigest()
 
 
 def key_order(key):
@@ -238,6 +241,37 @@ check('restore refuses an unsafe path', 'unsafe' in unsafe['error'], unsafe['err
 nothing = run({'operation': 'restore', 'snapshot': second, 'parents': [base, delta],
                'paths': []}, error=True)
 check('restore refuses an empty selection', 'at least one' in nothing['error'], nothing['error'])
+
+# --- declared objects instead of carrying the parent ------------------------
+# The adapter sends a manifest-only parent plus a digest list when a request
+# would otherwise be too large, so that path has to produce the same snapshot.
+slim_parent = {k: base[k] for k in ('version', 'files', 'checksum')}
+slim_parent['parent'] = base.get('parent')
+slim = run({'format': 3, 'previous': slim_parent, 'files': [
+    {'path': 'shared.txt', 'content_base64': base64.b64encode(shared).decode()},
+    {'path': 'retired.txt', 'content_base64': base64.b64encode(fresh).decode()},
+    {'path': 'added.txt', 'content_base64': base64.b64encode(added).decode()},
+], 'known_objects': sorted(base['objects'])})['snapshot']
+check('a declared-objects delta equals the full-parent delta',
+      slim['checksum'] == delta['checksum'] and slim['objects'] == delta['objects'],
+      slim['checksum'] + ' vs ' + delta['checksum'])
+check('the declared-objects delta reads through the chain',
+      run({'operation': 'audit', 'snapshot': slim, 'parents': [base]})['valid'] is True)
+
+# A claim the chain cannot honour must surface at read time, not silently.
+lie = run({'format': 3, 'previous': slim_parent, 'files': [
+    {'path': 'shared.txt', 'content_base64': base64.b64encode(shared).decode()},
+    {'path': 'retired.txt', 'content_base64': base64.b64encode(fresh).decode()},
+    {'path': 'added.txt', 'content_base64': base64.b64encode(added).decode()},
+    {'path': 'invented.txt', 'content_base64': base64.b64encode(b'invented payload').decode()},
+], 'known_objects': sorted(base['objects']) + [sha(b'invented payload')]})['snapshot']
+check('a false declaration does not store the payload', sha(b'invented payload') not in lie['objects'])
+bad = run({'operation': 'audit', 'snapshot': lie, 'parents': [base]})
+check('a false declaration is reported as a missing object',
+      bad['valid'] is False and any(i['reason'] == 'missing object' for i in bad['issues']),
+      str(bad['issues']))
+run({'operation': 'restore', 'snapshot': lie, 'parents': [base]}, error=True)
+check('a false declaration cannot be restored', True)
 
 print('Delta oracle: base/delta/three-link chains resolve, squash and refuse as expected'
       if not failures else 'Delta oracle: %d check(s) failed' % failures)
