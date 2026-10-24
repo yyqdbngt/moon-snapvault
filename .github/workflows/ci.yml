@@ -72,3 +72,23 @@ jobs:
       - run: node scripts/stats.mjs
       - run: python3 -B scripts/robustness.py
       - run: node scripts/integration.mjs
+  # Windows is the only platform whose rules the other jobs cannot exercise: the
+  # adapter's portability check has a win32 branch that refuses device names,
+  # `<>|?*` and trailing dots, and nothing else runs it. This job exists to keep
+  # that branch honest rather than assumed.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: hustcer/setup-moonbit@1522f9aef02a8ca0187dfc00a41f5dd6b16750f7
+      - run: moon version --all
+      - run: moon update
+      - run: moon test --target js
+      - run: moon build --target js
+      - run: moon build --target js --release
+      - run: node scripts/check.mjs
+      - run: node scripts/stats.mjs
+      - run: node scripts/integration.mjs

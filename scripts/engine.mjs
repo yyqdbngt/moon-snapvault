@@ -46,8 +46,13 @@ export function checkRequestSize(text, parts) {
     'Lower SNAPVAULT_ADAPTER_LIMIT_BYTES or back up a smaller tree per snapshot.',
   );
 }
+// The security boundary is containment plus the symlink walk below, not the
+// character set: `a\b.txt` and `we:ird.txt` are ordinary Linux file names, and
+// refusing them here meant such a directory could not be backed up at all. On
+// Windows those characters are separators or illegal, and `portablePaths` refuses
+// them there.
 export function safeFile(base, name) {
-  if (!name || name.includes('\\') || name.includes(':') || name.split('/').some(p => !p || p === '.' || p === '..')) throw new Error('Unsafe relative path');
+  if (!name || name.split('/').some(p => !p || p === '.' || p === '..')) throw new Error('Unsafe relative path');
   const absolute = path.resolve(base, name);
   if (!absolute.startsWith(base + path.sep)) throw new Error('Path leaves workspace');
   let current = base;

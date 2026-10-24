@@ -28,6 +28,24 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### Backing up trees with platform-specific names
+
+- Fixed: a directory containing a file named `con`, `a\b.txt` or `we:ird.txt` could
+  not be backed up at all on Linux, where all three are ordinary names. The core's
+  path rule rejected a union of every platform's restrictions, and the adapter's
+  `safeFile` rejected two of them again.
+- The core now accepts any path that is safe and possible somewhere: relative,
+  no empty/`.`/`..` components, no control characters, every component within the
+  255 bytes ext4, APFS and NTFS all allow. It gained that length limit, which it
+  was missing: a 304-character component was reported `valid` by `audit` and then
+  failed during restore with `ENAMETOOLONG`, leaving a partial directory.
+- `portablePaths` refuses what the destination platform actually cannot hold:
+  device names and `<>|?*` on Windows only, over-long paths everywhere, and case or
+  normalisation collisions. The same snapshot now restores fully on Linux and is
+  refused before anything is written when the destination is Windows.
+- `backup` gained a per-problem warning for names that will not restore on every
+  platform, instead of one opaque message.
+
 ### Backing up trees a case-insensitive volume cannot hold
 
 - Fixed: a directory containing two names that differ only by case, such as

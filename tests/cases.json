@@ -68,7 +68,7 @@
     "error": true
   },
   {
-    "name": "unsafe path CON.txt",
+    "name": "a Windows device name is a valid snapshot",
     "request": {
       "files": [
         {
@@ -77,8 +77,10 @@
         }
       ]
     },
-    "expected": {},
-    "error": true
+    "expected": {
+      "snapshot/files/0/path": "CON.txt"
+    },
+    "error": false
   },
   {
     "name": "unsafe path a//b",
@@ -94,7 +96,7 @@
     "error": true
   },
   {
-    "name": "unsafe path C:/x",
+    "name": "a colon is a valid snapshot path",
     "request": {
       "files": [
         {
@@ -103,8 +105,10 @@
         }
       ]
     },
-    "expected": {},
-    "error": true
+    "expected": {
+      "snapshot/files/0/path": "C:/x"
+    },
+    "error": false
   },
   {
     "name": "unsafe path a/../b",
@@ -2304,5 +2308,33 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "a component longer than 255 bytes is refused",
+    "request": {
+      "files": [
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "a component of exactly 255 bytes is accepted",
+    "request": {
+      "files": [
+        {
+          "path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "text": "x"
+        }
+      ]
+    },
+    "expected": {
+      "snapshot/files/0/path": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "error": false
   }
 ]

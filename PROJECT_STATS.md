@@ -4,10 +4,10 @@ Snapshot date: 2026-10-24. Module version: 0.3.0 in `main`; the published module
 
 | Category | Count |
 |---|---:|
-| Owned production MoonBit physical lines (root + CLI + codec) | 1938 |
-| Nonblank, non-comment production lines | 1610 |
-| MoonBit test declarations | 86 |
-| CLI fixture cases | 64 |
+| Owned production MoonBit physical lines (root + CLI + codec) | 1943 |
+| Nonblank, non-comment production lines | 1598 |
+| MoonBit test declarations | 87 |
+| CLI fixture cases | 66 |
 | Generated fixture test declarations | 0 |
 
 These numbers are checked by `node scripts/stats.mjs`, which recounts the same files and fails if

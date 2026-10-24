@@ -65,16 +65,13 @@ test "unsafe path ../escape" {
 }
 
 ///|
-test "unsafe path CON.txt" {
-  let failed = try {
-    ignore(
-      run(parse_value("{\"files\":[{\"path\":\"CON.txt\",\"text\":\"x\"}]}")),
-    )
-    false
-  } catch {
-    _ => true
-  }
-  assert_true(failed)
+test "a device name is a portability question, not a validity one" {
+  // Linux can hold a file called CON.txt, so the manifest has to be able to
+  // describe one; the writer refuses it on Windows. See `portablePaths`.
+  let result = run(
+    parse_value("{\"files\":[{\"path\":\"CON.txt\",\"text\":\"x\"}]}"),
+  )
+  assert_eq(arr(get(get(result, "snapshot"), "files")).length(), 1)
 }
 
 ///|
@@ -89,14 +86,64 @@ test "unsafe path a//b" {
 }
 
 ///|
-test "unsafe path C:/x" {
+test "a colon is a portability question, not a validity one" {
+  let result = run(
+    parse_value("{\"files\":[{\"path\":\"C:/x\",\"text\":\"x\"}]}"),
+  )
+  assert_eq(arr(get(get(result, "snapshot"), "files")).length(), 1)
+}
+
+///|
+test "a name longer than any filesystem allows is refused" {
+  // NAME_MAX is 255 bytes on ext4, APFS and NTFS, so a 256-byte component
+  // describes a tree nothing can hold. Catching it here means a restore does not
+  // fail halfway through with ENAMETOOLONG.
+  let long = "a".repeat(256)
   let failed = try {
-    ignore(run(parse_value("{\"files\":[{\"path\":\"C:/x\",\"text\":\"x\"}]}")))
+    ignore(
+      run(
+        record([
+          (
+            "files",
+            Array([record([("path", String(long)), ("text", String("x"))])]),
+          ),
+        ]),
+      ),
+    )
     false
   } catch {
     _ => true
   }
   assert_true(failed)
+  // Exactly at the limit is still accepted.
+  let at_limit = "a".repeat(255)
+  let ok = run(
+    record([
+      (
+        "files",
+        Array([record([("path", String(at_limit)), ("text", String("x"))])]),
+      ),
+    ]),
+  )
+  assert_eq(arr(get(get(ok, "snapshot"), "files")).length(), 1)
+  // Bytes, not characters: 128 two-byte characters is 256 bytes.
+  let wide = "\u00e9".repeat(128)
+  let wide_failed = try {
+    ignore(
+      run(
+        record([
+          (
+            "files",
+            Array([record([("path", String(wide)), ("text", String("x"))])]),
+          ),
+        ]),
+      ),
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(wide_failed)
 }
 
 ///|

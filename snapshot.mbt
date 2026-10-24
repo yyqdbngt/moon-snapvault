@@ -1,30 +1,35 @@
 ///|
+/// A path a manifest may contain.
+///
+/// This deliberately checks only what is impossible or unsafe *regardless of the
+/// destination*: the shape of the path, control characters, and a name longer than
+/// any filesystem accepts. Everything that depends on where the bytes will be
+/// written - backslashes, colons, `<>"|?*`, reserved device names, a trailing dot
+/// or space, case and normalisation folding - belongs to the writer, because only
+/// it knows the target. `portable_path` in the adapter is that check.
+///
+/// The alternative was tried and was wrong: folding case here meant a Linux
+/// directory holding `Report.txt` and `report.txt` could not be backed up at all,
+/// and the same argument applies to a file named `con`, which Linux allows.
 pub fn safe_path(path : String) -> Bool {
-  if path == "" ||
-    path.has_prefix("/") ||
-    path.contains("\\") ||
-    path.contains(":") {
+  if path == "" || path.has_prefix("/") {
     return false
   }
   for c in path {
-    if c.to_int() < 32 || ['<', '>', '"', '|', '?', '*'].contains(c) {
+    // Control characters are unrepresentable in manifests people can read and are
+    // a classic injection vector in anything that logs a path.
+    if c.to_int() < 32 {
       return false
     }
   }
   for part in path.split("/") {
-    if part == "" ||
-      part == "." ||
-      part == ".." ||
-      part.has_suffix(".") ||
-      part.has_suffix(" ") {
+    if part == "" || part == "." || part == ".." {
       return false
     }
-    let stem = part.to_owned().split(".").head().unwrap().to_owned().to_lower()
-    if [
-        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6",
-        "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7",
-        "lpt8", "lpt9",
-      ].contains(stem) {
+    // NAME_MAX is 255 bytes on ext4, APFS and NTFS alike, as UTF-8 bytes here.
+    // Exceeding it describes a tree no supported filesystem can hold, and the
+    // failure would otherwise surface halfway through a restore.
+    if @utf8.encode(part).length() > 255 {
       return false
     }
   }

@@ -40,6 +40,30 @@ before anything is written, so a restore needs room for the whole tree.
 
 ### Validity is not portability
 
+The same reasoning applies to every other platform-specific naming rule. The core
+accepts a path if it is safe and structurally possible *anywhere*: a relative path
+whose components are neither empty, `.` nor `..`, with no control characters, and
+no component longer than the 255 bytes every supported filesystem allows. It does
+not care about backslashes, colons, `<>"|?*`, device names or trailing dots,
+because a Linux directory may legitimately contain all of them - and refusing them
+in the core meant such a directory could not be backed up at all.
+
+`portablePaths` in the adapter is where the destination decides:
+
+- Every platform refuses a component over 255 bytes and a path longer than the
+  platform's own limit (1024 on macOS, 4096 elsewhere, 260 on Windows), plus names
+  that collide after case folding or Unicode normalisation.
+- Only Windows refuses reserved device names, `<>|?*` and a trailing dot or space -
+  so the same snapshot restores fully on Linux and is refused up front when the
+  destination is Windows.
+
+`backup` still warns about anything that would not restore on every platform, naming
+each problem, because that is useful to know when the snapshot is made. It does not
+refuse, and the snapshot is not wrong: it faithfully records what the source held.
+
+The consequence for a caller that writes the core's `restore` payloads itself is
+unchanged: that check is theirs.
+
 Two files whose names differ only by case or normalisation form are two files on
 Linux and one file on a case-insensitive or normalising volume. That is a property
 of the destination filesystem, not of the snapshot, so the two checks live in

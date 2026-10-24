@@ -21,8 +21,15 @@ function inside(child, parent) { return child === parent || child.startsWith(par
 // normalizing target. Backing it up stays allowed; the snapshot is simply
 // reported as not portable, and restore rejects it before writing.
 function warnNonPortable(files) {
+  // Two separate questions: does this tree restore *here*, and would it restore
+  // anywhere. Only the second belongs in a backup warning.
   try { portablePaths(files); }
-  catch (err) { console.error('warning: snapshot is not portable: ' + err.message); }
+  catch (err) { console.error('warning: snapshot is not portable: ' + err.message); return; }
+  const notes = portabilityNotes(files);
+  if (notes.length) {
+    console.error('warning: snapshot will not restore on every platform:');
+    for (const note of notes) console.error('  ' + note);
+  }
 }
 
 function readSnapshot(file) {
@@ -189,9 +196,53 @@ export function backup(source, destination, previous, chain = []) {
 // through and never lets one file overwrite another.
 const fold = (name) => name.normalize('NFC').toLowerCase();
 
+// Names Windows cannot hold, after stripping the trailing spaces and dots Win32
+// strips itself: `NUL`, `nul.txt` and `NUL .txt` all reach the device.
+const RESERVED = new Set([
+  'con', 'prn', 'aux', 'nul',
+  ...Array.from({length: 9}, (_, i) => 'com' + (i + 1)),
+  ...Array.from({length: 9}, (_, i) => 'lpt' + (i + 1)),
+]);
+const FORBIDDEN = /[:"<>|?*\\]/;
+
+// The reasons a name cannot be written on Windows, or [] when it can. Written as a
+// list so a warning can name every problem rather than only the first.
+function windowsProblems(part) {
+  const problems = [];
+  if (FORBIDDEN.test(part)) problems.push('contains a character Windows reserves');
+  if (/[. ]$/.test(part)) problems.push('ends with a dot or space, which Windows strips');
+  // Trailing spaces and dots come off before Windows decides about a device name.
+  if (RESERVED.has(part.split('.')[0].replace(/[. ]+$/, '').toLowerCase())) {
+    problems.push('is a Windows device name');
+  }
+  return problems;
+}
+
+function maxPathBytes() {
+  if (process.platform === 'darwin') return 1024;
+  return process.platform === 'win32' ? 260 : 4096;
+}
+
+// Paths that cannot be written *here*. Each platform is checked for what it
+// actually cannot hold, so a Linux tree holding `con` or `a\b.txt` still restores
+// on Linux - and the same snapshot is refused up front, not halfway through, when
+// the destination is Windows. Case folding is checked everywhere: macOS volumes are
+// usually case-insensitive and Windows always is, and a refusal on the rare
+// case-sensitive Linux setup is a warning the reader can see rather than data loss.
 export function portablePaths(files) {
   const folded = new Map();
+  const limit = maxPathBytes();
   for (const file of files) {
+    for (const part of file.path.split('/')) {
+      if (process.platform === 'win32') {
+        const problems = windowsProblems(part);
+        if (problems.length) throw new Error('Path ' + problems.join(' and ') + ': ' + part);
+      }
+    }
+    if (Buffer.byteLength(file.path, 'utf8') > limit) {
+      throw new Error(
+        `Path is longer than ${limit} bytes on this platform: ${file.path.slice(0, 60)}...`);
+    }
     const key = fold(file.path);
     const previous = folded.get(key);
     if (previous !== undefined) {
@@ -216,8 +267,24 @@ export function portablePaths(files) {
   }
 }
 
-// Compacts a chain into one self-contained snapshot file. Only reachable objects
-// survive, so this is also the way to recover the space deltas leave behind.
+// What would have to change for this tree to be restorable on *any* platform.
+// `backup` reports it as a warning: the snapshot is a faithful record either way,
+// and refusing to take it would be the mistake this project already made once.
+function portabilityNotes(files) {
+  const notes = new Set();
+  for (const file of files) {
+    for (const part of file.path.split('/')) {
+      for (const problem of windowsProblems(part)) {
+        notes.add('Path ' + problem + ': ' + part);
+      }
+    }
+    if (Buffer.byteLength(file.path, 'utf8') > 260) {
+      notes.add('Path is longer than the 260 bytes Windows allows: ' + file.path.slice(0, 60));
+    }
+  }
+  return [...notes];
+}
+
 // Compaction of a chain too large for one request: locate the payloads, extract
 // them per link (already verified against their digests), then ask the core for
 // the canonical checksum of the assembled manifest.

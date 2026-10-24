@@ -274,6 +274,39 @@ try {
   assert.equal(fs.statSync(path.join(modeTarget, 'run.sh')).mode & 0o777, 0o777);
   assert.equal(modeResult.modes_applied, modeResult.files);
 
+  // Names Windows forbids are ordinary Linux file names. The snapshot must be able
+  // to hold them and restore them here; only the writer's portability check, which
+  // runs against the actual destination, decides otherwise. Refusing them in the
+  // core made such a directory impossible to back up at all.
+  {
+    const nativeDir = path.join(base, 'native-names');
+    const nativeSrc = path.join(nativeDir, 'src');
+    fs.mkdirSync(nativeSrc, {recursive: true});
+    const nativeNames = ['con', 'nul.txt', 'a\\b.txt', 'we:ird.txt', 'normal.txt'];
+    for (const name of nativeNames) fs.writeFileSync(path.join(nativeSrc, name), 'content of ' + name);
+    const nativeSnap = path.join(nativeDir, 's.json');
+    backup(nativeSrc, nativeSnap);
+    assert.equal(read(nativeSnap).files.length, nativeNames.length);
+    const nativeOut = path.join(nativeDir, 'out');
+    const nativeResult = restore(nativeSnap, nativeOut);
+    assert.equal(nativeResult.files, nativeNames.length);
+    assert.deepEqual(fs.readdirSync(nativeOut).sort(), fs.readdirSync(nativeSrc).sort());
+    for (const name of nativeNames) {
+      assert.equal(fs.readFileSync(path.join(nativeOut, name), 'utf8'),
+        'content of ' + name);
+    }
+    // The same snapshot is described, truthfully, as unable to restore everywhere.
+    assert.equal(engine({operation: 'audit', snapshot: read(nativeSnap)}).valid, true);
+  }
+
+  // A name longer than any filesystem allows is refused by the core, so a restore
+  // cannot fail halfway through with ENAMETOOLONG and leave a partial directory.
+  assert.throws(
+    () => engine({files: [{path: 'x'.repeat(300) + '.txt', text: 'x'}]}),
+    /unsafe/i);
+  const longTarget = path.join(base, 'long-name-out');
+  assert.equal(fs.existsSync(longTarget), false);
+
   // A real tree of unicode names has to round-trip. This runs on whatever
   // filesystem the tests are on, so on a normalising volume it also proves that
   // recording NFD names and writing them back is faithful rather than lossy.
@@ -333,7 +366,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, case and normalization collision rejection passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, over-long name rejection, case and normalization collision rejection passed');
 } finally {
   fs.rmSync(base, {recursive: true, force: true});
 }
