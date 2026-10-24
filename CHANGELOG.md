@@ -1,8 +1,36 @@
 # Changelog
 
-## Unreleased - audit contract
+## Unreleased - 0.3.0
 
-Not published to MoonCakes yet; `moon add` still resolves 0.2.0.
+Module version in `main` is 0.3.0; `moon add yyqdbngt/moon_snapvault` still
+resolves the published 0.2.0 until a release is published.
+
+### Snapshot format 2
+
+- Object payloads are base64 text instead of arrays of decimal byte values. A
+  1 MiB incompressible file now produces a 1.33 MiB snapshot instead of
+  3.57 MiB, and the same 1 MiB backup drops from 2396 ms to 649 ms on the
+  reference host because the request no longer carries a million-element JSON
+  array in either direction.
+- `create` writes format 2 by default; `"format": 1` still produces the
+  previous layout byte for byte. Format 1 snapshots remain readable by
+  `audit`, `restore`, `diff` and `retention`, and a snapshot's version decides
+  which payload encoding is accepted, so a decimal payload inside a format-2
+  snapshot is reported as `invalid object encoding`.
+- Requests accept `content_base64` alongside `text` and `bytes`; exactly one
+  content form must be present.
+- `restore` returns `format` and `encoding` (`base64` or `decimal`) and keeps
+  the payload in the encoding it validated, so the adapter decodes with the
+  matching call instead of re-expanding decimal arrays.
+- `audit` reports `format`.
+- `retention` counts decoded bytes, so byte totals stay correct for base64
+  payloads, and snapshots of different formats can be planned together when the
+  digests match.
+- The host adapter sends base64 and raises its per-backup source cap from 1 MiB
+  to 8 MiB (10.7 MiB of JSON for incompressible data, still inside the 16 MiB
+  request cap). `SNAPVAULT_ADAPTER_LIMIT_BYTES` overrides the limit.
+
+### Audit contract (also unreleased)
 
 - `audit` verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`; `issues` entries now always carry `object` and use `path: null` when no file references the object.
 - `audit`, `retention` and `restore` agree on the same snapshot: a corrupt unreferenced object is refused by all three, and `create(previous=…)` no longer under-counts `new_object_bytes` when the previous snapshot claims content it cannot prove.

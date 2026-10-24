@@ -4,12 +4,13 @@ Content-addressed snapshots, implemented in MoonBit with a JSON CLI and reusable
 
 - Repository: [https://github.com/yyqdbngt/moon-snapvault](https://github.com/yyqdbngt/moon-snapvault)
 - Published package: `yyqdbngt/moon_snapvault@0.2.0`
+- Module in `main`: 0.3.0 (unreleased - see [the format note](#2026-10-24-format-2-and-audit-contract-unreleased))
 - License: Apache-2.0
-- Release scope: **0.2.0 is the published release**; `main` also carries the unreleased audit-contract work described below. The broader competition proposal in `docs/proposal.md` is a reference design, not a claim that every planned capability is implemented.
+- Release scope: **0.2.0 is the published release**; `main` carries the unreleased 0.3.0 work described below. The broader competition proposal in `docs/proposal.md` is a reference design, not a claim that every planned capability is implemented.
 
 ## Implemented
 
-SHA-256 object identities; byte or UTF-8 text inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits that verify every stored object, referenced or not; verified restore plans that carry permission bits; retention reachability plans. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
+SHA-256 object identities; byte, UTF-8 text or base64 inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits that verify every stored object, referenced or not; verified restore plans that carry permission bits; retention reachability plans. Snapshots are written in the compact format 2 and the previous format is still read. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
 
 ## Build and run
 
@@ -69,11 +70,11 @@ node scripts/integration.mjs
 moon fmt --check
 ```
 
-There are 19 MoonBit test declarations and 18 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`) or separately written reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 26 MoonBit test declarations and 29 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`) or separately written reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
-Each JSON snapshot is self contained, even when previous content is unchanged; `new_object_bytes` is a content statistic, not the physical archive size saved. A 1 MiB random file becomes about 3.6 MiB of JSON, because object bytes are stored as decimal numbers. The host adapter caps a backup at 1 MiB of source bytes; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. Mode bits are applied with `chmod` after each write, so the process umask cannot clear them. Names that collide only after Unicode normalization or case folding are rejected by the adapter before the destination is created. A failed write retains the new partial directory for inspection. Audits cover every stored object, so `create` with a `previous` snapshot and `restore` both pay for a full verification of that snapshot. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
+Each JSON snapshot is self contained, even when previous content is unchanged; `new_object_bytes` is a content statistic, not the physical archive size saved. Format 2 stores object bytes as base64, so a 1 MiB incompressible file becomes about 1.33 MiB of JSON (format 1 needed 3.6 MiB). The host adapter caps a backup at 8 MiB of source bytes by default, overridable with `SNAPVAULT_ADAPTER_LIMIT_BYTES`; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. Mode bits are applied with `chmod` after each write, so the process umask cannot clear them. Names that collide only after Unicode normalization or case folding are rejected by the adapter before the destination is created. A failed write retains the new partial directory for inspection. Audits cover every stored object, so `create` with a `previous` snapshot and `restore` both pay for a full verification of that snapshot. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
 
 See [source and dependency attribution](THIRD_PARTY.md). This release does not establish competition eligibility or organizer acceptance.
 
@@ -85,7 +86,11 @@ See [source and dependency attribution](THIRD_PARTY.md). This release does not e
 
 Repository release: 0.2.0; published MoonCakes module: `yyqdbngt/moon_snapvault@0.2.0`. Earlier repository 1.0.0 labels are retained as history; the module uses the registry-compatible zero-major sequence.
 
-## 2026-10-24 audit-contract revision (unreleased)
+## 2026-10-24 format 2 and audit contract (unreleased)
+
+Snapshots are written as `"version": 2` with base64 object payloads. `"format": 1` still produces the old decimal layout, and both versions stay readable by `audit`, `restore`, `diff` and `retention`; a snapshot's version decides which payload encoding is accepted. `restore` reports `format` and `encoding`, and requests accept `content_base64` next to `text` and `bytes`.
+
+Measured on the reference host (moon 0.1.20261023, Node 20, debug build): 1 MiB incompressible file 2396 -> 649 ms backup, 2081 -> 423 ms restore, snapshot 3.57 -> 1.33 MiB. 8 MiB backs up in 3.3 s and restores in 2.0 s. See `docs/snapshot-format.md`.
 
 `audit` now verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`. Before this revision `audit` accepted a snapshot whose unreferenced object did not match its key, while `retention` refused the same bytes and `create(previous=…)` under-counted `new_object_bytes`. The three operations now agree.
 

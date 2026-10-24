@@ -2,7 +2,7 @@
 
 ## Core
 
-SHA-256 object identities; byte or UTF-8 text inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits covering every stored object; verified restore plans that carry permission bits; retention reachability plans. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
+SHA-256 object identities; byte, UTF-8 text or base64 inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits covering every stored object; verified restore plans that carry permission bits; retention reachability plans. Snapshots are written as format 2 (base64 payloads) and format 1 (decimal payloads) stays readable; see `docs/snapshot-format.md`. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
 
 ## Boundaries
 
