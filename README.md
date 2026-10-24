@@ -3,17 +3,17 @@
 Content-addressed snapshots, implemented in MoonBit with a JSON CLI and reusable library API.
 
 - Repository: [https://github.com/yyqdbngt/moon-snapvault](https://github.com/yyqdbngt/moon-snapvault)
-- Package: `yyqdbngt/moon_snapvault@0.2.0`
+- Published package: `yyqdbngt/moon_snapvault@0.2.0`
 - License: Apache-2.0
-- Release scope: **0.1.0 initial implementation**. The broader competition proposal in `docs/proposal.md` is a reference design, not a claim that every planned capability is implemented.
+- Release scope: **0.2.0 is the published release**; `main` also carries the unreleased audit-contract work described below. The broader competition proposal in `docs/proposal.md` is a reference design, not a claim that every planned capability is implemented.
 
 ## Implemented
 
-SHA-256 object identities; byte or UTF-8 text inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; full object integrity audits; verified restore plans. scripts/filesystem.mjs creates snapshots from real directories and restores real files.
+SHA-256 object identities; byte or UTF-8 text inputs; deduplicated content stores; manifest checksums; path/case/file-directory collision checks; incremental change reports and new-content statistics; object integrity audits that verify every stored object, referenced or not; verified restore plans that carry permission bits; retention reachability plans. `scripts/filesystem.mjs` creates snapshots from real directories and restores real files.
 
 ## Build and run
 
-Use MoonBit and Node.js 24. The core library supports JS, wasm, wasm-gc and native; the filesystem/HTTP/process CLI is JS only.
+Use MoonBit (`moon` 0.1.20261012 or newer) and Node.js 24 for CI parity; Node.js 20.16+ works locally. The core library supports JS, wasm, wasm-gc and native; the filesystem/HTTP/process CLI is JS only.
 
 ```sh
 moon update
@@ -22,7 +22,7 @@ moon run cmd/main --target js -- examples/scenario-1.json
 node _build/js/debug/build/cmd/main/main.js examples/scenario-1.json
 ```
 
-Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. Successful requests print one JSON result; invalid requests exit nonzero. The host runner is a separate process and does not edit the input request file.
+Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. Successful requests print one JSON result. Every failure prints exactly one `{"error": "<message>"}` object on stdout and exits 1; usage errors exit 2. That contract also covers host-side failures (missing file, invalid UTF-8, oversize input), not just request validation. The host runner is a separate process and does not edit the input request file.
 
 ## Library use
 
@@ -45,9 +45,16 @@ fn example(request : Json) -> Json raise {
 }
 ```
 
-`execute(Json) -> Json raise` is the standard JSON boundary. `from_json`, `Value::to_json`, and `run(Value) -> Value raise` provide a typed semantic value interface. Object ordering is not significant; numeric values use finite Double. Public domain functions are listed in `pkg.generated.mbti`.
+`execute(Json) -> Json raise` is the standard JSON boundary. `from_json`, `parse_value`, `Value::to_json`, and `run(Value) -> Value raise` provide a typed semantic value interface. Object ordering is not significant; numeric values use finite Double. Public domain functions are listed in `pkg.generated.mbti`.
 
 ## Tests
+
+```sh
+sh scripts/verify.sh          # four backends plus every host check
+SKIP_NATIVE=1 sh scripts/verify.sh
+```
+
+`scripts/verify.sh` runs the ladder below. Native builds need a C compiler; when `cc` is shadowed by a wrapper script, set `MOON_CC` to a real compiler.
 
 ```sh
 moon test --target js
@@ -57,18 +64,18 @@ moon test --target native  # requires a C compiler
 moon build --target js
 node scripts/check.mjs
 python -B scripts/reference.py
-
+python -B scripts/followup_reference.py
 node scripts/integration.mjs
+moon fmt --check
 ```
 
-There are 11 checked fixture cases in `tests/cases.json`, executed both in MoonBit white-box tests and through the actual Node CLI. Independent reference checks use Python's standard library or separately written algorithms. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
+There are 19 MoonBit test declarations and 18 checked fixture cases in `tests/cases.json`. Both are hand written: the fixtures run through the actual Node CLI in `scripts/check.mjs`, and matching white-box tests assert the same inputs in `*_wbtest.mbt`. Independent references use Python's standard library (`hashlib`) or separately written reachability logic. Fixtures are synthetic and are not presented as production adoption evidence. See [input and output examples](docs/usage.md) and [current boundaries](docs/boundaries.md).
 
 ## Current boundaries
 
-Each JSON snapshot is self contained, even when previous content is unchanged; new_object_bytes is a content statistic, not the physical archive size saved. The host adapter caps a backup at 1 MiB of source bytes; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. A failed write retains the new partial directory for inspection. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
+Each JSON snapshot is self contained, even when previous content is unchanged; `new_object_bytes` is a content statistic, not the physical archive size saved. A 1 MiB random file becomes about 3.6 MiB of JSON, because object bytes are stored as decimal numbers. The host adapter caps a backup at 1 MiB of source bytes; the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files. Restore requires a new directory and validates all bytes first. Mode bits are applied with `chmod` after each write, so the process umask cannot clear them. Names that collide only after Unicode normalization or case folding are rejected by the adapter before the destination is created. A failed write retains the new partial directory for inspection. Audits cover every stored object, so `create` with a `previous` snapshot and `restore` both pay for a full verification of that snapshot. Designed for trusted local directories; concurrent hostile filesystem changes are not isolated. Manifests are integrity checked, not authenticated/encrypted.
 
 See [source and dependency attribution](THIRD_PARTY.md). This release does not establish competition eligibility or organizer acceptance.
-
 
 ## 2026-10-18 follow-up
 
@@ -76,6 +83,12 @@ See [source and dependency attribution](THIRD_PARTY.md). This release does not e
 
 只生成计划，不删除任何文件。可回收范围仅限输入中提供的对象，不包含未提供的外部仓库；自包含快照的逻辑对象统计不等同于实际磁盘节省量，宿主备份的 1 MiB 上限仍保留。
 
-Repository release: 0.2.0; installable MoonCakes module: `yyqdbngt/moon_snapvault@0.2.0`. Earlier repository 1.0.0 labels are retained as history; the module uses the registry-compatible zero-major sequence.
+Repository release: 0.2.0; published MoonCakes module: `yyqdbngt/moon_snapvault@0.2.0`. Earlier repository 1.0.0 labels are retained as history; the module uses the registry-compatible zero-major sequence.
 
-Current source contains 13 MoonBit test declarations and 11 CLI fixtures (generated fixture tests are included in the declaration count). Run `python -B scripts/followup_reference.py` for independent follow-up oracles and `examples/followup-20261018.json` for the new scenario.
+## 2026-10-24 audit-contract revision (unreleased)
+
+`audit` now verifies every stored object, referenced or not, and reports `objects_total`, `objects_checked`, `referenced_objects` and `unreferenced_objects`. Before this revision `audit` accepted a snapshot whose unreferenced object did not match its key, while `retention` refused the same bytes and `create(previous=…)` under-counted `new_object_bytes`. The three operations now agree.
+
+The CLI reports host-side failures through the same JSON error envelope as request errors, restore applies permission bits with `chmod` so the umask cannot clear them, and the adapter refuses names that collide after Unicode normalization or case folding before it creates the destination directory. Path sorting is lexicographic (`StringView::lexical_compare`) instead of MoonBit's shortlex `String::compare`.
+
+`moon build --target js` completes with zero warnings on moon 0.1.20261023. See `docs/audit-contract-20261024.md` for the evidence and `CHANGELOG.md` for the version note. These changes are not published to MoonCakes yet; `moon add` still resolves 0.2.0.
