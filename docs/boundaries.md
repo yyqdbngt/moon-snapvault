@@ -184,6 +184,24 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The claims that only matter after a publish
+
+`scripts/attribution.mjs` checks the four things a consumer relies on before running anything:
+that `LICENSE` holds the license `moon.mod` declares, that the module resolves no dependency
+outside `moonbitlang/core` (which `THIRD_PARTY.md` states), that every path the attribution names
+exists, and that the license texts it promises under `third_party/` are in the archive.
+
+These are the claims that go stale without anything failing. Adding a dependency, editing a
+license line, or dropping a file from `third_party/` produces no failing test - only a package that
+says something untrue, discovered by whoever installs it. All four failure modes were injected and
+each is reported.
+
+One correction came out of writing it. The first version asked `moon package --list` what ships,
+and reported that `third_party/*.txt` was missing from a package that contains them: the listing
+names top-level entries only, so a question about a file inside a directory cannot be put to it.
+The archive answers the question, so the check now unpacks it - which is why `unpack.mjs` is shared
+with `package-smoke.mjs` rather than copied.
+
 ### Documentation-reading scripts run on every platform
 
 The encoding defect fixed above was found by running a documentation-reading script on Windows.

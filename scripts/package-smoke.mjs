@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {unpack} from './unpack.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const moduleName = 'yyqdbngt/moon_snapvault';
@@ -37,20 +38,6 @@ function run(command, args, options = {}) {
     throw new Error(`${command} ${args.join(' ')} failed:\n${output.trim()}`);
   }
   return {...result, output};
-}
-
-function unpack(archivePath, destination) {
-  const attempts = process.platform === 'win32'
-    ? [['powershell', ['-NoProfile', '-Command',
-      `Expand-Archive -Force -LiteralPath '${archivePath}' -DestinationPath '${destination}'`]]]
-    : [['unzip', ['-q', '-o', archivePath, '-d', destination]]];
-  const problems = [];
-  for (const [command, args] of attempts) {
-    const result = spawnSync(command, args, {encoding: 'utf8'});
-    if (!result.error && result.status === 0) return;
-    problems.push(`${command}: ${result.error ? result.error.message : (result.stderr || result.stdout)}`);
-  }
-  throw new Error('cannot extract ' + archivePath + ':\n' + problems.join('\n'));
 }
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'snapvault-package-'));

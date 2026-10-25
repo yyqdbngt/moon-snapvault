@@ -65,6 +65,8 @@ node scripts/warnings.mjs
 node scripts/package-smoke.mjs
 # Every field an operation returns has to be named in the documentation.
 node scripts/fields.mjs
+# License, dependency and shipped-notice claims: they only fail after a publish.
+node scripts/attribution.mjs
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs

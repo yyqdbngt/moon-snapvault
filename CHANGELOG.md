@@ -62,6 +62,18 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### License, dependency and shipped-notice claims are now checked
+
+- `scripts/attribution.mjs` verifies that `LICENSE` holds the text of the license `moon.mod`
+  declares, that the module resolves nothing outside `moonbitlang/core`, that every path named in
+  `THIRD_PARTY.md` exists, and that the `third_party/` license texts reach the consumer inside the
+  archive. These are the claims that break nothing when they go wrong - only the package becomes
+  untrue, and the person who finds out is the one who installed it.
+- Each of the four failure modes was injected and is reported.
+- Writing it produced a correction: `moon package --list` lists top-level entries only, so asking
+  it whether `third_party/sha256-LICENSE.txt` ships gave a false answer. The check now inspects the
+  archive, and `unpack.mjs` is shared with `package-smoke.mjs` rather than duplicated.
+
 ### Documentation-reading scripts are run on every platform
 
 - `fields.mjs` and `doc-commands.mjs` are now in the `macos` and `windows` jobs, alongside

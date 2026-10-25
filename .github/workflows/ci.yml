@@ -46,6 +46,7 @@ jobs:
       - run: node scripts/consumer-smoke.mjs
       - run: node scripts/package-smoke.mjs
       - run: node scripts/fields.mjs
+      - run: node scripts/attribution.mjs
       - run: node scripts/cli-contract.mjs
       - run: node scripts/compat.mjs
       - run: node scripts/release-claims.mjs
@@ -91,6 +92,7 @@ jobs:
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
       - run: node scripts/fields.mjs
+      - run: node scripts/attribution.mjs
       - run: node scripts/doc-commands.mjs
       - run: node scripts/consumer-smoke.mjs
       - run: node scripts/package-smoke.mjs
@@ -124,6 +126,7 @@ jobs:
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
       - run: node scripts/fields.mjs
+      - run: node scripts/attribution.mjs
       - run: node scripts/doc-commands.mjs
       - run: node scripts/consumer-smoke.mjs
       - run: node scripts/package-smoke.mjs

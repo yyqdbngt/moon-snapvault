@@ -173,8 +173,10 @@ for job_name in ['integration', 'macos', 'windows']:
 PLATFORM_EXEMPT = {
     'defect-matrix.mjs': 'a six-minute deliberate probe, not part of any job',
 }
-# `filesystem.mjs` is the adapter itself, exercised through `integration.mjs` on every platform.
-HOST_LIBRARIES = {'filesystem.mjs', 'engine.mjs'}
+# Libraries are exercised through the scripts that call them, and those run everywhere.
+# `filesystem.mjs` is the adapter, exercised through `integration.mjs`; `unpack.mjs` is called by
+# `package-smoke.mjs` and `attribution.mjs`, both of which run on all three platforms.
+HOST_LIBRARIES = {'filesystem.mjs', 'engine.mjs', 'unpack.mjs'}
 PLATFORM_NODE = 'process' + '.platform'
 PLATFORM_PYTHON = 'sys' + '.platform'
 scripts_dir = root / 'scripts'
