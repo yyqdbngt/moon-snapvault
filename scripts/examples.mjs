@@ -34,7 +34,8 @@ function newestSource() {
   for (const directory of roots) {
     if (!fs.existsSync(directory)) continue;
     for (const name of fs.readdirSync(directory)) {
-      if (!name.endsWith('.mbt')) continue;
+      // White-box test files are not linked into the executable; see engine.mjs.
+      if (!name.endsWith('.mbt') || name.endsWith('_wbtest.mbt')) continue;
       const stat = fs.statSync(path.join(directory, name));
       if (stat.isFile()) newest = Math.max(newest, stat.mtimeMs);
     }

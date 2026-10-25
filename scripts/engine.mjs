@@ -8,17 +8,23 @@ export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const BUILD_MODES = process.env.MOON_BUILD ? [process.env.MOON_BUILD] : ['release', 'debug'];
 
 // Newest modification time among the sources a build depends on.
+// White-box test files are compiled only by `moon test`, never linked into an executable, so
+// a change to one cannot make the CLI stale. Counting them made the guard permanently
+// unfixable: touching a test file leaves the artifact older than the source, and
+// `moon build --release` answers "no work to do" because nothing it builds depends on it.
+const isSource = (name) => name.endsWith('.mbt') && !name.endsWith('_wbtest.mbt');
+
 function newestSource() {
   let newest = 0;
   for (const entry of fs.readdirSync(root, {withFileTypes: true})) {
-    if (!entry.isFile() || !entry.name.endsWith('.mbt')) continue;
+    if (!entry.isFile() || !isSource(entry.name)) continue;
     newest = Math.max(newest, fs.statSync(path.join(root, entry.name)).mtimeMs);
   }
   for (const sub of ['cmd/main']) {
     const directory = path.join(root, sub);
     if (!fs.existsSync(directory)) continue;
     for (const name of fs.readdirSync(directory)) {
-      if (name.endsWith('.mbt')) {
+      if (isSource(name)) {
         newest = Math.max(newest, fs.statSync(path.join(directory, name)).mtimeMs);
       }
     }

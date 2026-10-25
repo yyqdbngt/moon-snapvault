@@ -37,7 +37,11 @@ function invoke(runner, args, options = {}) {
 
 function check(label, result, expectedCode, {allowEmptyStdout = false} = {}) {
   if (result.status !== expectedCode) {
-    problems.push(`${label}: exit ${result.status}, wanted ${expectedCode}`);
+    // Say what the tool said. Without it, a stale build reports four identical "exit 1,
+    // wanted 0" lines and the reason - printed on stderr by the adapter - is lost.
+    const said = (result.stdout || '').trim() || (result.stderr || '').trim();
+    problems.push(`${label}: exit ${result.status}, wanted ${expectedCode}`
+      + (said ? `: ${said.slice(0, 160)}` : ''));
     return null;
   }
   if (result.stderr.trim() !== '') {
@@ -146,10 +150,20 @@ try {
   check('adapter: unknown operation', invoke(adapter, ['nosuchop', 'a', 'b']), 2);
 
   // --- the same request through both entry points must agree --------------
-  const viaCore = invoke(core, ['-'], {
-    input: JSON.stringify({operation: 'audit', snapshot: JSON.parse(fs.readFileSync(snapshot))}),
-  });
-  check('core: audit of an adapter snapshot', viaCore, 0);
+  //
+  // Guarded: the snapshot comes from the backup above, and if that failed the file is not
+  // there. Reading it anyway turned a recorded failure into a stack trace, which is the third
+  // time this shape of mistake has appeared in a check of mine - a step that assumes its
+  // prerequisite succeeded.
+  if (!fs.existsSync(snapshot)) {
+    problems.push('could not compare the entry points: the backup above did not produce a '
+      + 'snapshot');
+  } else {
+    const viaCore = invoke(core, ['-'], {
+      input: JSON.stringify({operation: 'audit', snapshot: JSON.parse(fs.readFileSync(snapshot))}),
+    });
+    check('core: audit of an adapter snapshot', viaCore, 0);
+  }
 } finally {
   fs.rmSync(work, {recursive: true, force: true});
 }

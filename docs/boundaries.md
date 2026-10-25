@@ -454,6 +454,19 @@ deleted. Both that fixture and the checker were fixed.
 
 ### Stale builds are refused, not tolerated
 
+The guard counts only files that are linked into the artifact. Counting white-box test files
+made it permanently unfixable: `moon build --release` does not rebuild anything for a change to
+`*_wbtest.mbt`, so the artifact stays older than the source and the guard fails forever with no
+way out except `SNAPVAULT_ALLOW_STALE=1`. Restoring a test file from a backup was enough to
+trigger it. Test files are now excluded, which is correct because they are compiled only by
+`moon test`.
+
+Two improvements to how that failure is reported, both prompted by hitting it. A step that
+assumes its prerequisite succeeded now checks first - the third occurrence of that shape in a
+check of mine, after the compatibility and compatibility-diff cases - and a mismatch now carries
+the tool's own message, because four identical "exit 1, wanted 0" lines said nothing about the
+stale build behind them.
+
 The harness prefers a release artifact and falls back to debug. It caught itself out
 while this was being written: after editing source and running `moon build --target
 js`, the checker silently used the older release binary and reported three deliberate

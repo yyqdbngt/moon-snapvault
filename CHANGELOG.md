@@ -28,6 +28,18 @@ resolves the published 0.2.0 until a release is published.
   16 MiB".
 - 3 MiB tree, one small file changed: base 4.1 MB / 611 ms, delta 752 B / 685 ms.
 
+### The stale-build guard could not be satisfied
+
+- The guard compared the artifact against the newest `.mbt` in the tree, test files included.
+  `moon build --release` rebuilds nothing for a white-box test file, so touching or restoring
+  one left the artifact older than its "source" and the guard failed permanently, with
+  `SNAPVAULT_ALLOW_STALE=1` as the only way past it. Test files are compiled only by `moon test`
+  and are now excluded.
+- Two reporting fixes that came out of hitting it: a step now checks its prerequisite before
+  using its output - the third occurrence of that shape in a check of mine - and an exit-code
+  mismatch carries the tool's own message. Four identical "exit 1, wanted 0" lines had nothing
+  in them about the stale build causing them.
+
 ### A snapshot crosses backends unchanged
 
 - The library compiles for four backends, so a snapshot written on one can be read on another.
