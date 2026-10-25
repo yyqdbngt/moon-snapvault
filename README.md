@@ -99,6 +99,7 @@ node scripts/warnings.mjs
 node scripts/package-smoke.mjs
 node scripts/fields.mjs
 node scripts/attribution.mjs
+node scripts/layers.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs
 node scripts/stats.mjs

@@ -62,6 +62,19 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### The adapter and the core are now compared with each other
+
+- `scripts/layers.mjs` runs `backup`, `restore` and `squash` through both layers and asserts they
+  agree on the snapshot, the paths, the bytes, the modes and the checksum. Each layer was tested
+  well on its own and nothing compared them - which is how `squash` produced two different snapshots
+  from one input with both suites green.
+- Verified as load-bearing: reverting the `squash` format default reproduces all three symptoms that
+  shipped, corrupting the payload reports the affected files, and dropping the `chmod` reports a
+  mode mismatch.
+- The mode comparison only worked after adding a 0777 file. Under a 022 umask a 0644 file arrives
+  correct whether or not the `chmod` runs, so the check passed for want of a case rather than
+  because the code was right.
+
 ### `filesystem.mjs squash` no longer changes the snapshot's format
 
 - Without `--format`, `squash` kept the format in the core but the adapter forced 3, so folding a

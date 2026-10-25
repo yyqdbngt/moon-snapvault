@@ -184,6 +184,35 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The two layers are compared with each other, not only tested separately
+
+The core is covered by the white-box suite and the fixtures; the adapter by the integration suite
+and the CLI contract. Both were thorough and nothing compared them with each other - which is the
+gap `squash` fell through. The core kept a snapshot's format, the adapter forced 3, the same input
+produced two different snapshots, and every test on both sides passed.
+
+`scripts/layers.mjs` runs the three operations the adapter exposes through both layers and compares
+what must agree:
+
+| Comparison | What a disagreement means |
+|---|---|
+| `backup` vs `create` | the adapter recorded something the core would not have, so the file on disk is a snapshot nothing else in the project would produce |
+| `restore` vs `restore` | the core says it would write one thing and the adapter wrote another - silent data loss, because the bytes look fine |
+| `squash` vs `squash` | compacting leaves a different snapshot, and since a child names its parent by checksum, identity is lost |
+
+It compares properties, not raw output: the two layers report different envelopes, so byte equality
+is meaningless. What must agree is the snapshot, the paths, the bytes, the modes and the checksum.
+
+Verified as load-bearing three ways. Reverting the `squash` format default reproduces exactly the
+three symptoms that shipped last round - the format, the checksum, and the identity - which is the
+strongest evidence available that this check would have caught it. Corrupting the payload before it
+is written reports the affected files. Dropping the explicit `chmod` reports a mode mismatch.
+
+That last one only worked after a correction. The tree had no file whose mode the umask would
+narrow, so removing the `chmod` changed nothing: `openSync` is given the recorded mode, and under a
+022 umask a 0644 file arrives correct anyway. A 0777 file had to be added before the comparison
+could see the difference - a reminder that a check which passes may be passing for want of a case.
+
 ### The CLI and the library agree on defaults
 
 `squash` without a format keeps the format the snapshot already has, in the core and now in

@@ -67,6 +67,9 @@ node scripts/package-smoke.mjs
 node scripts/fields.mjs
 # License, dependency and shipped-notice claims: they only fail after a publish.
 node scripts/attribution.mjs
+# The adapter and the core must give the same answer for the same input; each layer is tested
+# well on its own and neither notices when they diverge.
+node scripts/layers.mjs
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs
