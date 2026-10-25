@@ -47,6 +47,7 @@ jobs:
       - run: node scripts/package-smoke.mjs
       - run: node scripts/fields.mjs
       - run: node scripts/invariants.mjs
+      - run: node scripts/doc-examples.mjs
       - run: node scripts/attribution.mjs
       - run: node scripts/layers.mjs
       - run: node scripts/cli-contract.mjs

@@ -184,6 +184,38 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The examples in the usage document are executed
+
+`docs/usage.md` states results in a machine-readable shape - a map of slash paths to expected
+values, or "Expected: nonzero exit" - and nothing ran them. The usage document is where a reader
+goes first, and an example that no longer matches the code is worse than no example: a wrong answer
+carrying the authority of documentation.
+
+`scripts/doc-examples.mjs` runs each request and compares. Nine examples: five check reported
+fields, four check that a request is refused. Nine further sections state a result in prose or show
+only a fragment, and the script counts them rather than implying coverage it does not have.
+
+It found three stale sections at once, and the reason they were stale is worth recording: all three
+described the *core* refusing something that the writer refuses instead.
+
+| Section | Said | Actually |
+|---|---|---|
+| `case collision` | the core refuses two names differing in case | it records both; a case-sensitive filesystem holds two files, and whether a tree restores depends on the target volume |
+| `unsafe path CON.txt` | the core refuses a Windows device name | it records it; `CON.txt` is an ordinary file on Linux, so refusing would make such a tree unbackupable |
+| `unsafe path C:/x` | the core refuses a drive path | it did, then it did not - and that was the defect |
+
+The first two are the separation made earlier this session: the core rejects structural
+contradictions, the writer rejects what the destination cannot hold. The document kept the older
+description, and nothing noticed because prose is not executed.
+
+The third was a genuine regression, found by the same check. `C:/x` is absolute on Windows and a
+plain directory name elsewhere, so restoring it on Linux created `out/C:/x` - a surprising tree
+rather than a refusal. `safe_path` now refuses a one-letter prefix followed by a colon, which also
+covers `c:rel`, `a:stream` and a bare `Z:`, while `file:name.txt` stays accepted because a colon
+later in a name is a portability question and nothing more. A white-box test that had used `C:/x` to
+argue "a colon is a portability question" now pins both halves, because it was asserting the case
+that turned out to be wrong.
+
 ### The reported numbers have to add up
 
 `scripts/invariants.mjs` asserts 108 arithmetic relations between fields the operations report -

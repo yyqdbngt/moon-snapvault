@@ -86,11 +86,48 @@ test "unsafe path a//b" {
 }
 
 ///|
-test "a colon is a portability question, not a validity one" {
-  let result = run(
-    parse_value("{\"files\":[{\"path\":\"C:/x\",\"text\":\"x\"}]}"),
+/// A colon is a portability question, not a validity one - but only when it is not the second
+/// character of a drive-qualified path, which is a different thing entirely.
+///
+/// `file:name.txt` is an ordinary name on Linux and macOS, and a name with an alternate data
+/// stream on NTFS; whether a tree can be restored is the writer's question, so the core accepts it.
+/// `C:/x` is absolute on Windows and a directory literally called `C:` everywhere else, so
+/// restoring it on Linux produced `out/C:/x` - a surprising tree rather than a refusal. The core
+/// refuses that one now, and this test pins both halves so the distinction cannot be flattened
+/// again by someone reading only one of them.
+test "a colon is a portability question unless it makes a drive path" {
+  let portable = run(
+    parse_value("{\"files\":[{\"path\":\"file:name.txt\",\"text\":\"x\"}]}"),
   )
-  assert_eq(arr(get(get(result, "snapshot"), "files")).length(), 1)
+  assert_eq(arr(get(get(portable, "snapshot"), "files")).length(), 1)
+  let refused = try {
+    ignore(run(parse_value("{\"files\":[{\"path\":\"C:/x\",\"text\":\"x\"}]}")))
+    false
+  } catch {
+    InputError(message) => message.contains("unsafe")
+    _ => false
+  }
+  assert_true(refused)
+  // A drive prefix is refused wherever the letter case puts it, and a bare drive is not a file.
+  for path in ["c:/x", "c:rel", "Z:", "a:stream"] {
+    let rejected = try {
+      ignore(
+        run(
+          record([
+            (
+              "files",
+              Array([record([("path", String(path)), ("text", String("x"))])]),
+            ),
+          ]),
+        ),
+      )
+      false
+    } catch {
+      InputError(_) => true
+      _ => false
+    }
+    assert_true(rejected)
+  }
 }
 
 ///|

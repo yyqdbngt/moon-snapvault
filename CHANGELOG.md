@@ -62,6 +62,22 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### Drive-qualified paths are refused, and the usage document is executed
+
+- `docs/usage.md` states results in a machine-readable shape and nothing ran them. `scripts/doc-examples.mjs`
+  now executes all nine sections that carry a checkable expectation - five comparing reported
+  fields, four asserting a refusal - and counts the nine that state a result in prose instead.
+- **`C:/x` was accepted and restored as a directory literally named `C:`.** It is absolute on
+  Windows and a plain name elsewhere, so the same snapshot restored to different trees. `safe_path`
+  now refuses a one-letter prefix followed by a colon - covering `c:rel`, `a:stream` and a bare
+  `Z:` - while `file:name.txt` remains accepted, because a colon later in a name is only a
+  portability question. The white-box test that used `C:/x` to argue that point now pins both
+  halves.
+- Two sections were stale for a different reason: they described the core refusing what the writer
+  refuses instead. `case collision` and `unsafe path CON.txt` now say what the core does - record
+  the names - and where the refusal lives.
+- Verified by falsifying an expectation, which is reported with the section name.
+
 ### The reported numbers are now checked against each other
 
 - `scripts/invariants.mjs` asserts 108 arithmetic relations between reported fields: `create`'s

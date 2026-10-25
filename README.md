@@ -100,6 +100,7 @@ node scripts/warnings.mjs
 node scripts/package-smoke.mjs
 node scripts/fields.mjs
 node scripts/invariants.mjs
+node scripts/doc-examples.mjs
 node scripts/attribution.mjs
 node scripts/layers.mjs
 node scripts/examples.mjs

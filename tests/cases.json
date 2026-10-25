@@ -96,17 +96,42 @@
     "error": "unsafe source path"
   },
   {
-    "name": "a colon is a valid snapshot path",
+    "name": "a colon later in a name is a valid snapshot path",
     "request": {
       "files": [
         {
-          "path": "C:/x",
+          "path": "file:name.txt",
           "text": "x"
         }
       ]
     },
     "expected": {
-      "snapshot/files/0/path": "C:/x"
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "file:name.txt",
+            "digest": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "size": 1,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881": "eA=="
+        },
+        "checksum": "a22eb827389e4c4a14f46232f8d3d4ef5ad133bf372ddb5300b00e3d49acb59b"
+      },
+      "statistics": {
+        "total_bytes": 1,
+        "unique_bytes": 1,
+        "new_object_bytes": 1,
+        "reused_object_bytes": 0,
+        "deduplicated_bytes": 0,
+        "objects_stored": 1,
+        "objects_reused": 0,
+        "base_verified": true
+      },
+      "changes": null
     },
     "error": false
   },

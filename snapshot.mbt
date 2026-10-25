@@ -15,6 +15,32 @@ pub fn safe_path(path : String) -> Bool {
   if path == "" || path.has_prefix("/") {
     return false
   }
+  // A Windows drive-qualified path is absolute on that platform and a plain directory name
+  // elsewhere: `C:/x` restored on Linux creates a directory called `C:`, which is not what anyone
+  // writing an absolute path intends and not something a snapshot of a relative tree can contain.
+  // Refusing it here means the mistake is reported when the snapshot is described, on whatever
+  // machine describes it, rather than producing a surprising tree on some of them.
+  if path.length() >= 2 {
+    // The first two characters decide it. Iterating is the one character access this version
+    // offers without a conversion dance, and stopping after two keeps it cheap.
+    let mut index = 0
+    let mut first = 0
+    let mut second = 0
+    for c in path {
+      if index == 0 {
+        first = c.to_int()
+      } else if index == 1 {
+        second = c.to_int()
+        break
+      }
+      index += 1
+    }
+    let is_letter = (first >= 97 && first <= 122) ||
+      (first >= 65 && first <= 90)
+    if is_letter && second == 58 {
+      return false
+    }
+  }
   for c in path {
     // Control characters are unrepresentable in manifests people can read and are
     // a classic injection vector in anything that logs a path.

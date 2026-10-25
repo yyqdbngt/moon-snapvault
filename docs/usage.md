@@ -254,7 +254,19 @@ Expected: nonzero exit with an input error.
 }
 ```
 
-Expected: nonzero exit with an input error.
+Expected fields:
+
+```json
+{
+  "snapshot/version": 2
+}
+```
+
+`CON.txt` is a device name on Windows and an ordinary file everywhere else, so the core records it:
+a snapshot of a Linux tree holding that name is a faithful record, and refusing it would make such
+a tree unbackupable. The refusal belongs to the writer, which knows the destination - `backup`
+warns, and `restore` on Windows rejects it before creating the directory. This section used to say
+the core refused it, which was the behaviour before that separation.
 
 ## unsafe path a//b
 
@@ -318,7 +330,20 @@ Expected: nonzero exit with an input error.
 }
 ```
 
-Expected: nonzero exit with an input error.
+Expected fields:
+
+```json
+{
+  "snapshot/version": 2
+}
+```
+
+The core accepts this and records both names, because on a case-sensitive filesystem they are two
+distinct files and a snapshot is a faithful record of what was there. Whether a tree can be
+restored depends on the target volume, which the core does not know about, so the refusal belongs
+to the writer: `scripts/filesystem.mjs restore` rejects it before creating the destination, and
+`backup` warns without refusing. This section used to say the core refused it, which was true
+before that separation and wrong after it.
 
 ## Host adapter
 
