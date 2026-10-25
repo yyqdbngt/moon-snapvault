@@ -52,6 +52,21 @@ resolves the published 0.2.0 until a release is published.
   and the published version together.
 - Verified: changing the expected value by one nibble fails the test on the backend that ran it.
 
+### The unreadable-file refusal is now exercised on Windows
+
+- It had been skipped there since it was written, because `chmod 0o000` does not stop a read on
+  NTFS. Windows has ACLs, so the case now uses `icacls /deny` and verifies the lock by
+  attempting a read before including itself - an Administrator token can bypass the ACE, and the
+  runner runs as Administrator.
+- It works, and it found a difference: an ACL refusal arrives as EPERM where a Unix mode refusal
+  arrives as EACCES, so the message reads `operation not permitted` on Windows and `permission
+  denied` elsewhere. Both name the entry and neither leaks an errno; the first assertion
+  hard-coded one wording and failed on the other.
+- Two failures on the way, both recorded because they shaped the design: the deny ACE survived
+  into `rmSync` and killed the job, and `icacls /remove:d` did not remove it. Unlocking now uses
+  `/reset`, the case refuses to run if the unlock cannot be verified, and the shared cleanup
+  resets ACLs and retries once.
+
 ### The performance gate was flaky, and is now honest about where it applies
 
 - It failed at 288 ms against a 140 ms baseline while the host had a load average of 11. A

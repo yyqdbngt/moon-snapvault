@@ -353,11 +353,23 @@ two ways depending on where it was met. The integration suite asserts that each 
 messages names its entry and that none of them is a raw errno; both assertions were
 confirmed to fail when the old wording is put back.
 
-Two of those scenarios cannot be built on Windows, and the suite says so rather than
-claiming them: `chmod 0o000` does not make a file unreadable on NTFS, which has no Unix
-permission bits, and creating a symlink needs Developer Mode - the check is skipped there
-if it cannot run. The same limitation is why `restore` reports `modes_exact: false` on
-Windows.
+Building those scenarios needs different tools per platform, and the suite checks which ones
+are available rather than assuming. `chmod 0o000` makes a file unreadable on a Unix filesystem;
+NTFS has no such bits, so Windows uses an ACL - `icacls /deny` - and the case verifies the lock
+by attempting a read before it is included, because an Administrator token can bypass the ACE.
+It works: the Windows job now exercises the refusal, and reports it as `operation not permitted`
+rather than `permission denied`, since an ACL refusal arrives as EPERM where a Unix mode refusal
+arrives as EACCES. Both are translations of an errno and both name the entry, which is what the
+assertion checks - its first version hard-coded one wording and failed on the other.
+
+A symlink needs Developer Mode on Windows, so that case is skipped if creation fails rather than
+claimed. And `restore` reports `modes_exact: false` there, for the same reason chmod cannot help:
+permission bits are not something NTFS stores.
+
+The first attempt at the Windows lock also failed, in a way worth recording: the lock worked and
+the cleanup then could not delete the tree, because the deny ACE was still on the file. Unlocking
+now uses `icacls /reset` and the case refuses to run at all if the unlock cannot be verified - a
+test that strands a permission is worse than no test.
 
 A source tree that changes while it is being read can still produce a snapshot of a state
 that never existed as a whole. That is inherent - the walk is not a transaction - and it

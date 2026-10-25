@@ -339,7 +339,13 @@ try {
         throw new Error('the unreadable-file lock could be applied but not released on '
           + process.platform + '; refusing to run a case that would strand a permission');
       }
-      named.push(['unreadable file', lockFile, /Cannot read locked.txt: permission denied/]);
+      // Two spellings, both correct: Unix refuses a read with EACCES and Windows with EPERM
+      // when an ACL denies it, and `reason()` turns each into its own sentence. The assertion
+      // accepts either because what matters is that the entry is named and the errno is gone -
+      // the first version of this test hard-coded "permission denied" and failed on Windows for
+      // a difference that is not a defect.
+      named.push(['unreadable file', lockFile,
+        /Cannot read locked.txt: (permission denied|operation not permitted)/]);
     } else {
       console.log(`  note: cannot make a file unreadable on ${process.platform}, so the `
         + 'unreadable-file refusal is not exercised here');
