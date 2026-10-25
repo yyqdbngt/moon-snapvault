@@ -54,6 +54,9 @@ node scripts/cli-contract.mjs
 node scripts/compat.mjs
 # The release note tells users what changed; its factual claims are checked, not trusted.
 node scripts/release-claims.mjs
+# The defect matrix is a deliberate probe (minutes); its anchors are checked here so the
+# entries cannot rot into reporting a gap that no longer exists.
+node scripts/defect-matrix.mjs --check-anchors
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs

@@ -96,9 +96,11 @@ for name, job in jobs.items():
                 problems.append(f'{label}: masks an exit status with `|| true`')
             if body.strip().endswith('&'):
                 problems.append(f'{label}: backgrounds its command, so the step cannot fail')
-    # A matrix that is referenced but never defined, or defined but unused.
+    # A matrix that is referenced but never defined. The reference is `${{ matrix.NAME }}`; a
+    # bare `matrix.` also matches a file called `defect-matrix.mjs`, which is how this check
+    # first produced a false positive against a step that has nothing to do with matrices.
     rendered = yaml.safe_dump(job)
-    uses_matrix = 'matrix.' in rendered
+    uses_matrix = re.search(r'\$\{\{\s*matrix\.', rendered) is not None
     defines_matrix = 'matrix' in job.get('strategy', {})
     if uses_matrix and not defines_matrix:
         problems.append(f'{name}: references matrix.* without defining a matrix')

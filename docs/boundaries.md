@@ -184,6 +184,32 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The safety net is tested, not just the code
+
+`scripts/defect-matrix.mjs` injects sixteen realistic mistakes one at a time - a missing
+`fsync`, a format 1 payload written as base64, a checksum that ignores `version`, `--path` parsed
+as a positional, an audit that skips unreferenced objects, a restore that allows an existing
+destination - and records which check catches each. Coverage answers which code the tests
+execute; this answers would a mistake be noticed, which is the question a user has.
+
+All sixteen are caught. What the matrix did find was a gap, on its second run: nothing tested a
+path whose components are each legal but whose total exceeds what the platform can hold. The core
+accepts such a snapshot - the 255-byte limit it enforces is per component - and only the adapter's
+whole-path check stops a restore from dying halfway through with a partial directory. Every
+component under 255 bytes, the path 1,198, the macOS limit 1,024: no test built one. The
+integration suite does now.
+
+Two design points came out of running it. The first version left `integration.mjs` out of the
+check list because it is slow, which would have reported any defect only that suite catches as
+caught by nobody - the worst error here, since a false gap sends someone hunting a hole that is
+not there. And a defect gated on another platform cannot be judged on this one: `windowsProblems`
+is not consulted on macOS or Linux, so "Windows device names accepted" is recorded as not
+observable rather than a gap.
+
+The full matrix takes about six minutes, so it is a deliberate probe rather than part of the
+ladder. `--check-anchors` runs there instead: it verifies that every entry's text still occurs
+exactly once, because a stale entry is what would turn a working matrix into a false gap.
+
 ### Coverage is measured, and may only widen
 
 `moon test --target js --enable-coverage` reports which lines the white-box tests execute.

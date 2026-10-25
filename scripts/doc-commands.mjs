@@ -40,7 +40,7 @@ const COVERED = [
   /^moon fmt /,
   /^sh scripts\/verify\.sh/,
   /^SKIP_NATIVE=1 sh scripts\/verify\.sh/,
-  /^node scripts\/(check|stats|interface|consumer-smoke|examples|durability|cli-contract|doc-commands|coverage|bench-smoke|compat|release-claims|integration)\.mjs/,
+  /^node scripts\/(check|stats|interface|consumer-smoke|examples|durability|cli-contract|doc-commands|coverage|bench-smoke|compat|release-claims|defect-matrix|integration)\.mjs/,
   /^node _build\/js\/release\/build\/cmd\/main\/main\.js /,
   /^python -B scripts\/(reference|followup_reference|delta_reference|fuzz|robustness|mutation_sweep|workflow|docs)\.py/,
 ];

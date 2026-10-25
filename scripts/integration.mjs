@@ -585,6 +585,39 @@ try {
   const longTarget = path.join(base, 'long-name-out');
   assert.equal(fs.existsSync(longTarget), false);
 
+  // A path whose components are each legal but whose total exceeds what this platform can
+  // hold must be refused before the destination is created. Found by the defect matrix: every
+  // component here is under the core's 255-byte limit, so the core accepts the snapshot and
+  // only the adapter's whole-path check stands between the caller and a restore that dies
+  // halfway through with a partial directory.
+  {
+    // Over-long on every platform this runs on: Linux allows 4,096 bytes for the whole path,
+    // macOS 1,024 and Windows 260, so the path has to clear 4,096 to be refused everywhere. The
+    // first version used 1,198 bytes, which Linux can hold - the test failed there and was
+    // right to.
+    const component = (prefix) => prefix.repeat(250);
+    const longParts = [];
+    for (let index = 0; index < 18; index++) {
+      longParts.push(component(String.fromCharCode(97 + (index % 26))));
+    }
+    const longPath = longParts.join('/') + '/payload.txt';
+    const perComponent = Buffer.byteLength(longParts[0], 'utf8');
+    assert.ok(perComponent <= 255, `component is ${perComponent} bytes, should be legal`);
+    assert.ok(Buffer.byteLength(longPath, 'utf8') > 4096,
+      `the path is ${Buffer.byteLength(longPath, 'utf8')} bytes, needs to exceed 4,096`);
+    // The core has no whole-path limit; that is a property of the destination filesystem.
+    const overLong = engine({files: [{path: longPath, text: 'x'}]}).snapshot;
+    assert.equal(engine({operation: 'audit', snapshot: overLong}).valid, true,
+      'the core accepts a snapshot whose paths are individually legal');
+    const overLongFile = path.join(base, 'over-long-path.json');
+    fs.writeFileSync(overLongFile, JSON.stringify(overLong));
+    const overLongTarget = path.join(base, 'over-long-path-out');
+    assert.throws(() => restore(overLongFile, overLongTarget), /longer than \d+ bytes/i,
+      'a whole path beyond the platform limit is refused');
+    assert.equal(fs.existsSync(overLongTarget), false,
+      'and nothing is created before the refusal');
+  }
+
   // A real tree of unicode names has to round-trip. This runs on whatever
   // filesystem the tests are on, so on a normalising volume it also proves that
   // recording NFD names and writing them back is faithful rather than lossy.
@@ -644,7 +677,7 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore, named host and source failures passed');
+  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name and path rejection, case and normalization collision rejection, concurrent publication and restore, named host and source failures passed');
 } finally {
   // Remove the scratch tree, and do not let a cleanup problem masquerade as a test failure.
   // On Windows a permission the case provoked can survive into `rmSync` - that is exactly how

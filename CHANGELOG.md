@@ -52,6 +52,22 @@ resolves the published 0.2.0 until a release is published.
   and the published version together.
 - Verified: changing the expected value by one nibble fails the test on the backend that ran it.
 
+### A defect matrix, and the gap it found
+
+- `scripts/defect-matrix.mjs` injects sixteen realistic mistakes one at a time and records which
+  check catches each. All sixteen are caught - but the matrix found a real gap on its second run.
+- Nothing tested a path whose components are each legal yet whose total exceeds the platform
+  limit. The core accepts such a snapshot, because its 255-byte rule is per component; only the
+  adapter's whole-path check prevents a restore that dies halfway through and leaves a partial
+  directory. The integration suite now builds one: components of 240 bytes, a path of 1,198, the
+  macOS limit 1,024, refused with nothing created.
+- Two fixes to the matrix itself: `integration.mjs` was left out of the check list for speed,
+  which would have reported any defect only that suite catches as caught by nobody; and a defect
+  gated on another platform is now recorded as not observable rather than as a gap.
+- The full run takes six minutes, so `--check-anchors` runs in the ladder instead. It catches the
+  failure mode that matters for a matrix: an entry whose code has moved, which would report a gap
+  that no longer exists.
+
 ### The unreadable-file refusal is now exercised on Windows
 
 - It had been skipped there since it was written, because `chmod 0o000` does not stop a read on
