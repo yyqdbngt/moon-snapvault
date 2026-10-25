@@ -95,6 +95,7 @@ node scripts/cli-contract.mjs
 node scripts/compat.mjs
 node scripts/release-claims.mjs
 node scripts/defect-matrix.mjs --check-anchors
+node scripts/warnings.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs
 node scripts/stats.mjs

@@ -182,7 +182,10 @@ fn power(base : Int32, exponent : Int32) -> Int32 {
 
 ///|
 test "each accessor names what it wanted" {
-  let message_of = fn(act : () -> Unit raise) -> String raise {
+  // No raise on the return type: the catch below takes every error, including the one the
+  // act() argument raises, so nothing escapes. The compiler said so and the build did not,
+  // because moon build never compiles test files.
+  let message_of = fn(act : () -> Unit raise) -> String {
     try {
       act()
       "no refusal"

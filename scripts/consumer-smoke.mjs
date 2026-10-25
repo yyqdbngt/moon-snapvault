@@ -29,6 +29,24 @@ function run(command, args, options = {}) {
   return result;
 }
 
+// Extracts a package archive. `unzip` is not on every Windows image and PowerShell is not on
+// Linux or macOS, so the tool is chosen by platform and the arguments go through spawnSync's
+// array form rather than a shell string - a path containing a space or a quote then needs no
+// escaping.
+function unpack(archivePath, destination) {
+  const attempts = process.platform === 'win32'
+    ? [['powershell', ['-NoProfile', '-Command',
+      `Expand-Archive -Force -LiteralPath '${archivePath}' -DestinationPath '${destination}'`]]]
+    : [['unzip', ['-q', '-o', archivePath, '-d', destination]]];
+  const problems = [];
+  for (const [command, args] of attempts) {
+    const result = spawnSync(command, args, {encoding: 'utf8'});
+    if (!result.error && result.status === 0) return;
+    problems.push(`${command}: ${result.error ? result.error.message : (result.stderr || result.stdout)}`);
+  }
+  throw new Error('cannot extract ' + archivePath + ':\n' + problems.join('\n'));
+}
+
 const consumerSource = `///|
 /// Written against the published interface only: every call is one of the exported
 /// functions, and nothing here can reach a package-private item.
@@ -198,12 +216,27 @@ try {
     }
   }
 
+  // Install the *packed archive*, not the source tree. The archive is what `moon publish`
+  // uploads and therefore what a consumer downloads; the source tree is what the rest of the
+  // ladder already tests. If the two differ - a file the module needs that `moon package`
+  // leaves out - only this can notice, and it would notice on the version that ships.
   const installed = path.join(consumer, '.mooncakes', ...moduleName.split('/'));
   fs.rmSync(installed, {recursive: true, force: true});
-  fs.cpSync(root, installed, {
-    recursive: true,
-    filter: (source) => !/\/(_build|\.git|\.mooncakes|node_modules)(\/|$)/.test(source),
-  });
+  const archived = run('moon', ['package'], {cwd: root, allowFailure: true});
+  if (archived.status !== 0) {
+    throw new Error('moon package failed, so nothing can be published:\n'
+      + (archived.stdout || '') + (archived.stderr || ''));
+  }
+  const packagedVersion = fs.readFileSync(path.join(root, 'moon.mod'), 'utf8')
+    .match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+  if (!packagedVersion) throw new Error('cannot read the version from moon.mod');
+  const archive = path.join(root, '_build', 'publish',
+    `${moduleName.replace('/', '-')}-${packagedVersion}.zip`);
+  if (!fs.existsSync(archive)) {
+    throw new Error(`moon package reported success but wrote no archive at ${archive}`);
+  }
+  fs.mkdirSync(installed, {recursive: true});
+  unpack(archive, installed);
   // Keep the graph resolvable while the source stays current.
   const installedManifest = path.join(installed, 'moon.mod');
   fs.writeFileSync(installedManifest, fs.readFileSync(installedManifest, 'utf8')

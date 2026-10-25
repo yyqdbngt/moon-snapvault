@@ -184,6 +184,35 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The published artifact is what gets tested
+
+`scripts/consumer-smoke.mjs` used to copy the source tree into a consumer's `.mooncakes` and
+compile against that. The source tree is what the rest of the ladder already covers; what a
+consumer downloads is the archive `moon package` produces, and nothing tested it. The two can
+differ - a file the module needs that packaging leaves out - and the difference would surface on
+the version that ships. The check now runs `moon package`, unpacks the archive, and compiles
+against that. Verified by deleting `base64.mbt` from the unpacked tree, which fails at the remove
+of the first export.
+
+The archive holds 110 files: the MoonBit sources, `moon.mod`, `moon.pkg`,
+`pkg.generated.mbti`, the documentation, `examples/`, `scripts/` and `tests/`. Including the host
+scripts and the compatibility fixtures is deliberate - they are what makes `scripts/filesystem.mjs`
+and the 0.2.0 fixtures usable by someone who installed the package - and it does mean the package
+carries development tooling. That is a size judgement, not a correctness one.
+
+### Warnings are measured with the command that can see them
+
+`moon build` does not compile white-box test files, so it reports zero warnings for a tree whose
+tests warn. Every "zero warnings" claim in this repository had been made from `moon build` output.
+A warning did sit in `coverage_wbtest.mbt` for several revisions - a lambda declared
+`-> String raise` whose body catches every error, so the `raise` was dead - and `moon build` never
+saw it.
+
+`scripts/warnings.mjs` runs `moon check` on all four targets, which compiles everything without
+emitting object files, and fails on any warning. It counts rather than matching text: warning
+text is a compiler detail that changes between releases, so pinning it would break on upgrade
+rather than on defect. Four targets rather than one because a warning can be backend-specific.
+
 ### The safety net is tested, not just the code
 
 `scripts/defect-matrix.mjs` injects sixteen realistic mistakes one at a time - a missing

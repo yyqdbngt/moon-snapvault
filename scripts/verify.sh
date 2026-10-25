@@ -57,6 +57,9 @@ node scripts/release-claims.mjs
 # The defect matrix is a deliberate probe (minutes); its anchors are checked here so the
 # entries cannot rot into reporting a gap that no longer exists.
 node scripts/defect-matrix.mjs --check-anchors
+# `moon build` does not compile white-box test files, so it reports zero warnings for a tree
+# whose tests warn. `moon check` sees everything; this is the only step that uses it.
+node scripts/warnings.mjs
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs

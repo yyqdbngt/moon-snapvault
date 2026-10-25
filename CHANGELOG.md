@@ -52,6 +52,26 @@ resolves the published 0.2.0 until a release is published.
   and the published version together.
 - Verified: changing the expected value by one nibble fails the test on the backend that ran it.
 
+### Zero warnings had been measured with a command that cannot see warnings
+
+- `moon build` does not compile white-box test files. Every "0 warnings" claim in this repository
+  came from `moon build` output, and a warning had been sitting in `coverage_wbtest.mbt` for
+  several revisions: a lambda declared `-> String raise` whose body catches every error, so the
+  `raise` was dead.
+- `scripts/warnings.mjs` runs `moon check` - which compiles the test files - on all four targets
+  and fails on any warning. It counts rather than matching text, because warning text changes
+  between compiler releases and a check pinned to it would break on upgrade instead of on defect.
+
+### The consumer check now compiles against the package archive
+
+- `consumer-smoke.mjs` copied the source tree into `.mooncakes`. The source tree is already
+  covered by everything else; what a consumer actually downloads is the archive `moon package`
+  produces, and that had never been compiled. It now runs `moon package`, unpacks the archive,
+  and builds against it - verified by deleting `base64.mbt` from the unpacked tree.
+- `moon package` also answers what would be published: 110 files, sources plus documentation,
+  examples, host scripts and the 0.2.0 compatibility fixtures, and no build output or dependency
+  directory.
+
 ### A defect matrix, and the gap it found
 
 - `scripts/defect-matrix.mjs` injects sixteen realistic mistakes one at a time and records which
