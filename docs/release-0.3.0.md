@@ -14,7 +14,7 @@ The published version is 0.2.0. `moon add yyqdbngt/moon_snapvault@0.2.0` resolve
 | The library, calling `create_snapshot` directly | One call shape that 0.2.0 accepted is now refused |
 | `scripts/filesystem.mjs` as a command | Error output moved from stderr to stdout, and usage errors now exit 2 |
 | Snapshots written by 0.2.0 | Still readable, byte for byte; nothing to migrate |
-| Snapshots you write from now on | Some shapes 0.2.0 wrote are now refused when read back, if they held unreferenced objects |
+| Snapshots you write from now on | No change to what is written; the stricter audit affects reading, and 0.2.0 snapshots have nothing for it to reject |
 
 ## Breaking changes, with what to do
 
@@ -49,10 +49,15 @@ Before 0.3.0 the three disagreed: `audit` said valid, `retention` refused, and
 `create(previous=...)` under-counted `new_object_bytes` because it believed a fake object was
 already stored.
 
-**What to do:** if a pre-0.3.0 snapshot now audits invalid, its unreferenced objects are
-damaged. The files it names are still intact and can be restored by removing the offending
-objects from `objects` - they are, by definition, not referenced. There is no tool command for
-that; it is a small edit to the JSON.
+**What to do:** for snapshots 0.2.0 wrote, nothing. That version only stores an object for a
+file it walked, so every object it wrote is referenced and the stricter audit finds nothing to
+reject - checked against both committed fixtures, which hold three objects for three files and
+no unreferenced entries.
+
+The change matters for a snapshot someone has edited: an unreferenced object with a mismatched
+key used to pass. If one now audits invalid, the files it names are still intact, and the
+snapshot can be repaired by deleting the offending entries from `objects` - they are, by
+definition, not referenced. There is no command for that; it is a small edit to the JSON.
 
 ### 3. `drop_snapshots` is narrower
 

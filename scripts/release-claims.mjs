@@ -9,6 +9,7 @@
 //
 // It reads the note's shape rather than its prose: the numbers and behaviours asserted here are
 // the ones the note states, so a change that invalidates the prose fails here first.
+import {readFileSync} from 'node:fs';
 import {engine} from './engine.mjs';
 const claims = [];
 const check = (label, fn) => {
@@ -53,6 +54,74 @@ check('restore paths selects a subtree', () => sel.files.length === 1 && sel.fil
 check('parse_value parses', () => typeof engine === 'function');
 
 // Claim: duplicate path still refused (documented behaviour unchanged).
+// Claim: 0.2.0 snapshots hold no unreferenced objects, so the stricter audit finds nothing
+// to reject in them. The release note makes this claim and it is the difference between a
+// migration task and none; the first version of the note said the opposite.
+check('0.2.0 snapshots hold no unreferenced objects', () => {
+  for (const name of ['0.2.0-first.json', '0.2.0-second.json']) {
+    const snapshot = JSON.parse(readFileSync(new URL(`../tests/compat/${name}`, import.meta.url)));
+    const referenced = new Set(snapshot.files.map((file) => file.digest));
+    const unreferenced = Object.keys(snapshot.objects).filter((hash) => !referenced.has(hash));
+    if (unreferenced.length > 0) return false;
+  }
+  return true;
+});
+
+// Claim: deleting the unreferenced entries repairs a snapshot whose audit fails. That is the
+// remedy the note prescribes, so it has to work - the checksum covers the manifest, not the
+// object map, which is what makes the edit safe.
+check('deleting unreferenced objects repairs the audit', () => {
+  const base = engine({files: [{path: 'a.txt', text: 'abc'}]}).snapshot;
+  const damaged = JSON.parse(JSON.stringify(base));
+  damaged.objects['0'.repeat(64)] = 'ZZZZ';
+  if (engine({operation: 'audit', snapshot: damaged}).valid !== false) return false;
+  delete damaged.objects['0'.repeat(64)];
+  const repaired = engine({operation: 'audit', snapshot: damaged});
+  if (repaired.valid !== true) return false;
+  // And the files are still restorable, which is the point of the remedy.
+  const restored = engine({operation: 'restore', snapshot: damaged});
+  return restored.files.length === 1 && restored.files[0].path === 'a.txt';
+});
+
+// Claim: keeping a delta promotes its whole chain into required_snapshots, so drop_snapshots
+// no longer names a snapshot whose removal would make the kept one unreadable. This is the
+// correction release change 3 describes, and it is worth asserting because the older behaviour
+// is the dangerous direction: it proposed deleting what a kept snapshot needs.
+check('keeping a delta promotes its chain out of drop_snapshots', () => {
+  const simple = (snapshot) => ({
+    version: snapshot.version,
+    parent: snapshot.parent ?? null,
+    files: snapshot.files,
+    objects: snapshot.objects,
+    checksum: snapshot.checksum,
+  });
+  const base = engine({files: [{path: 'a.txt', text: 'one'}]}).snapshot;
+  const mid = engine({
+    format: 3, previous: simple(base),
+    files: [{path: 'a.txt', text: 'one'}, {path: 'b.txt', text: 'two'}],
+  }).snapshot;
+  const tip = engine({
+    format: 3, previous: simple(mid), parents: [simple(base)],
+    files: [
+      {path: 'a.txt', text: 'one'}, {path: 'b.txt', text: 'two'},
+      {path: 'c.txt', text: 'three'},
+    ],
+  }).snapshot;
+  const plan = engine({
+    operation: 'retention',
+    snapshots: [
+      {id: 'base', snapshot: simple(base)},
+      {id: 'mid', snapshot: simple(mid), parents: [simple(base)]},
+      {id: 'tip', snapshot: simple(tip), parents: [simple(mid), simple(base)]},
+    ],
+    keep: ['tip'],
+  });
+  return plan.drop_snapshots.length === 0
+    && plan.required_snapshots.length === 2
+    && plan.required_snapshots.includes('base')
+    && plan.required_snapshots.includes('mid');
+});
+
 check('duplicate path refused', () => {
   try { engine({files:[{path:'a', text:'x'}, {path:'a', text:'y'}]}); return false; }
   catch { return true; }
