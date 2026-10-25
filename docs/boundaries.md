@@ -184,6 +184,38 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The serializer's round-trip law is tested by class, not by example
+
+Everything rests on one property: text the core writes can be read back as the value it came from.
+A snapshot written today is re-read by `audit`, `restore`, `retention` and the checksum, and all
+four go through `stringify` and `parse_value`. It had been checked by one assertion on one small
+value.
+
+The failure this guards against is silent. A string that loses a character, or a number that gains
+a decimal point, produces a snapshot that parses without complaint and hashes to something else -
+so what the user sees is "this snapshot is corrupt", with nothing pointing at the serializer.
+
+`roundtrip_wbtest.mbt` covers the corpus by class: every scalar the type allows, every escape JSON
+requires, the unicode forms that look identical but are different values (precomposed versus
+decomposed, an astral character, zero-width joiners), and the number spellings at the edge of what
+a double holds. For each it asserts both that the value survives and that the canonical text does:
+a snapshot that is written, read and written again has to hash the same, which equal values alone
+do not guarantee.
+
+Verified as load-bearing: mangling an astral character in the writer leaves all 118 earlier tests
+passing and fails this one, because none of them used a character outside the BMP. A blunt break -
+appending a character to every string - is caught by the earlier tests as well, which is expected:
+the new file adds classes rather than duplicating ground.
+
+Two boundaries are pinned rather than fixed. `stringify` of a non-finite number emits the
+JavaScript tokens `NaN` and `Infinity`, which are not JSON, and `parse_value` refuses them. The core
+never produces one - every numeric entry point refuses a non-finite value, `format` is an `Int` so
+its type excludes them, a supplied `size` is ignored rather than honoured because `create` measures
+the content, and `assemble` refuses a non-finite size - but a caller building a `Value` directly can
+reach `stringify` with one. Pinning the behaviour is honest; changing `stringify`'s signature to
+raise would be an API change to make unilaterally, and silently emitting `null` would lose data
+without saying so.
+
 ### The claims that only matter after a publish
 
 `scripts/attribution.mjs` checks the four things a consumer relies on before running anything:

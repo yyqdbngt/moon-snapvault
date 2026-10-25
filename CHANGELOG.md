@@ -62,6 +62,21 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### The serializer round-trip is tested by class, and two boundaries are pinned
+
+- `roundtrip_wbtest.mbt` asserts that `parse_value(stringify(v))` equals `v` for every scalar
+  class - including the unicode forms that look identical but differ, an astral character, and the
+  number spellings at the edge of a double - and that the canonical text also survives, so a
+  snapshot written, read and written again hashes the same. This had been one assertion on one
+  value; four operations depend on it.
+- Load-bearing: mangling an astral character in the writer leaves the 118 earlier tests passing and
+  fails this one.
+- Pinned rather than changed: `stringify` of a non-finite number emits `NaN` or `Infinity`, which
+  are not JSON, and `parse_value` refuses them. No core path can produce one, and the test says why
+  for each numeric input - `format` is an `Int`, a supplied `size` is measured rather than trusted,
+  `assemble` refuses a non-finite size. Changing `stringify` to raise would be an API change made
+  unilaterally; emitting `null` would lose data silently.
+
 ### License, dependency and shipped-notice claims are now checked
 
 - `scripts/attribution.mjs` verifies that `LICENSE` holds the text of the license `moon.mod`
