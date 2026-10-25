@@ -161,6 +161,46 @@ for job_name in ['integration', 'macos', 'windows']:
         if required not in rendered:
             problems.append(f'{job_name}: does not run {required}')
 
+# --- platform branches are exercised where they exist ----------------------
+# A script that asks what platform it is on has a branch for each answer, and the only way that
+# branch is tested is by running the script there. `package-smoke.mjs` unpacks with PowerShell on
+# Windows and `unzip` elsewhere; it was added to `verify.sh`, which the integration job runs, and
+# so its Windows branch was never executed - the platform jobs list their steps explicitly and
+# nothing noticed the omission. This check does.
+#
+# Exemptions need a reason, the same discipline the command-classifier uses: a bare list of
+# unrun scripts would rot silently.
+PLATFORM_EXEMPT = {
+    'defect-matrix.mjs': 'a six-minute deliberate probe, not part of any job',
+}
+# `filesystem.mjs` is the adapter itself, exercised through `integration.mjs` on every platform.
+HOST_LIBRARIES = {'filesystem.mjs', 'engine.mjs'}
+PLATFORM_NODE = 'process' + '.platform'
+PLATFORM_PYTHON = 'sys' + '.platform'
+scripts_dir = root / 'scripts'
+platform_sensitive = set()
+for entry in scripts_dir.iterdir():
+    if not entry.is_file() or entry.suffix not in {'.mjs', '.py'}:
+        continue
+    text = entry.read_text(encoding='utf-8', errors='replace')
+    # Built by concatenation so this file does not contain the needle and match itself: the
+    # first version did, and reported workflow.py as a platform-sensitive script that nothing
+    # runs.
+    if PLATFORM_NODE in text or PLATFORM_PYTHON in text:
+        platform_sensitive.add(entry.name)
+platform_sensitive -= HOST_LIBRARIES
+platform_sensitive -= set(PLATFORM_EXEMPT)
+
+for job_name in ['macos', 'windows']:
+    job = jobs.get(job_name)
+    if job is None:
+        continue
+    rendered = yaml.safe_dump(job)
+    for name in sorted(platform_sensitive):
+        if f'scripts/{name}' not in rendered:
+            problems.append(f'{job_name}: does not run scripts/{name}, which reads the platform '
+                            'name, so its branch for this platform is never executed')
+
 if problems:
     print(f'Workflow: {len(problems)} problem(s) in ci.yml')
     for problem in problems:
@@ -168,4 +208,5 @@ if problems:
     sys.exit(1)
 
 print(f'Workflow: ci.yml parses, {len(jobs)} jobs, '
-      f'{len(verify_steps)} host checks agree with verify.sh, no step can pass silently')
+      f'{len(verify_steps)} host checks agree with verify.sh, no step can pass silently, '
+      f'{len(platform_sensitive)} platform-sensitive scripts run on every platform')

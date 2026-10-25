@@ -62,6 +62,18 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### A script in verify.sh runs on Linux only
+
+- The `macos` and `windows` jobs list their steps explicitly, so a script added to `verify.sh`
+  executes on Linux and nowhere else. `package-smoke.mjs` was added that way and its Windows
+  branch - PowerShell instead of `unzip` - was never executed.
+- `workflow.py` now requires any script whose source reads the platform name to appear in both
+  platform jobs, with a reasoned exemption list. Adding it found a second case at once:
+  `fault-probe.mjs` reports that it cannot build a small filesystem on Windows, and that report
+  had never run on Windows. It is in the `windows` job now.
+- The check flagged itself first, because its own source contained the string it looks for; the
+  needle is built by concatenation.
+
 ### verify.sh could not run on the package it ships
 
 - The archive contains `scripts/verify.sh`, documented as "one command runs everything", and

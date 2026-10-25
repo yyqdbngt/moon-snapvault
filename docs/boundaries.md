@@ -184,6 +184,24 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### A platform branch is tested only by running it there
+
+The `macos` and `windows` jobs list their steps explicitly rather than running `verify.sh`, because
+there is no `sh` guarantee and the two platforms do not need every check. That means a script
+added to `verify.sh` runs on Linux and nowhere else. `package-smoke.mjs` was added that way, and
+its Windows branch - PowerShell instead of `unzip` - was never executed, in a check whose whole
+purpose was to prove the shipped artifact works.
+
+`workflow.py` now enforces the invariant that would have caught it: a script whose source reads
+the platform name has a branch per platform, and the only way that branch is tested is by running
+the script there, so such a script must appear in both platform jobs. Exemptions carry a reason,
+the same discipline the command classifier uses.
+
+Adding the check found a second case immediately: `fault-probe.mjs` reports that it cannot build a
+small filesystem on Windows, and that report had never been run on Windows. It is now in the
+`windows` job. The check also flagged itself - its own source contains the string it searches for
+- which is why the needle is built by concatenation.
+
 ### The archive is usable as a distribution, not only as a library
 
 `consumer-smoke.mjs` proves the archive can be compiled against. `package-smoke.mjs` proves the

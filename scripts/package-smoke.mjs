@@ -132,8 +132,17 @@ try {
 
   // The ladder steps that must work from a package. `workflow.py` used to exit 1 here because
   // packaging omits `.github`; it now says it is not a checkout and succeeds.
-  for (const step of [['python3', ['-B', 'scripts/docs.py']],
-    ['python3', ['-B', 'scripts/workflow.py']],
+  // `python3` is the name on Linux and macOS; the Windows runners provide `python`. Resolving it
+  // here rather than assuming one name is what lets this run on all three platforms - and it
+  // only runs on three because the platform jobs list their steps explicitly, so a script added
+  // to `verify.sh` alone executes on Linux and nowhere else.
+  const python = ['python3', 'python'].find((candidate) => {
+    const probe = spawnSync(candidate, ['--version'], {encoding: 'utf8'});
+    return !probe.error && probe.status === 0;
+  });
+  if (!python) throw new Error('no python interpreter found to run the shipped doc checks');
+  for (const step of [[python, ['-B', 'scripts/docs.py']],
+    [python, ['-B', 'scripts/workflow.py']],
     ['node', ['scripts/check.mjs']]]) {
     run(step[0], step[1], {cwd: unpacked});
   }
