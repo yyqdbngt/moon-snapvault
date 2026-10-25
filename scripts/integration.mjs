@@ -289,15 +289,27 @@ try {
         fs.chmodSync(target, 0o000);
       }
     };
+    // Unlocking has to be reliable, because a deny ACE left behind makes the temporary tree
+    // impossible to delete - which is how the first version of this failed on Windows: the
+    // lock worked, the cleanup got EPERM, and the job died in `rmSync`. `/reset` drops the
+    // explicit ACEs and restores inheritance, which is more thorough than removing the one
+    // deny entry by name.
     const unlockFile = (dir) => {
       const target = path.join(dir, 'locked.txt');
       if (!fs.existsSync(target)) return;
       if (process.platform === 'win32') {
-        const user = process.env.USERNAME;
-        execSync(`icacls ${JSON.stringify(target)} /remove:d "${user}"`, {stdio: 'ignore'});
+        execSync(`icacls ${JSON.stringify(target)} /reset`, {stdio: 'ignore'});
         return;
       }
       fs.chmodSync(target, 0o600);
+    };
+    // Best effort on the whole tree, in case a lock survived somewhere; ignored because a
+    // failure here only means the cleanup below has to cope, not that the test was wrong.
+    const unlockTree = (dir) => {
+      if (process.platform !== 'win32') return;
+      try {
+        execSync(`icacls ${JSON.stringify(dir)} /reset /T /C`, {stdio: 'ignore'});
+      } catch { /* nothing to reset */ }
     };
     // Does the lock actually deny a read here? Decided by trying, not by platform name.
     const lockProbe = path.join(base, 'lock-probe');
@@ -317,6 +329,16 @@ try {
       try { unlockFile(lockProbe); } catch { /* nothing to unlock */ }
     }
     if (lockWorks) {
+      // And confirm the unlock restores access, so the refusal test leaves nothing behind.
+      let released = false;
+      try {
+        fs.readFileSync(path.join(lockProbe, 'locked.txt'));
+        released = true;
+      } catch { released = false; }
+      if (!released) {
+        throw new Error('the unreadable-file lock could be applied but not released on '
+          + process.platform + '; refusing to run a case that would strand a permission');
+      }
       named.push(['unreadable file', lockFile, /Cannot read locked.txt: permission denied/]);
     } else {
       console.log(`  note: cannot make a file unreadable on ${process.platform}, so the `
@@ -343,6 +365,7 @@ try {
       // case created the file, and on Windows leaving a deny ACE behind would make the
       // cleanup fail with the same permission error the test was provoking.
       try { unlockFile(dir); } catch { /* already gone */ }
+      unlockTree(dir);
     }
   }
 
@@ -617,5 +640,23 @@ try {
 
   console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name rejection, case and normalization collision rejection, concurrent publication and restore, named host and source failures passed');
 } finally {
-  fs.rmSync(base, {recursive: true, force: true});
+  // Remove the scratch tree, and do not let a cleanup problem masquerade as a test failure.
+  // On Windows a permission the case provoked can survive into `rmSync` - that is exactly how
+  // the first unreadable-file attempt failed - so ACLs are reset once and the removal retried.
+  try {
+    fs.rmSync(base, {recursive: true, force: true});
+  } catch (err) {
+    if (process.platform === 'win32') {
+      try {
+        execSync(`icacls ${JSON.stringify(base)} /reset /T /C`, {stdio: 'ignore'});
+      } catch { /* nothing to reset */ }
+      try {
+        fs.rmSync(base, {recursive: true, force: true});
+      } catch (retryError) {
+        console.log('  note: could not remove ' + base + ' (' + retryError.code + ')');
+      }
+    } else {
+      throw err;
+    }
+  }
 }
