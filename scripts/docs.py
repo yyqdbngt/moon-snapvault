@@ -47,7 +47,7 @@ def slug(heading):
 def headings(path):
     found = set()
     in_code = False
-    for line in path.read_text().split('\n'):
+    for line in path.read_text(encoding='utf-8').split('\n'):
         if line.startswith('```'):
             in_code = not in_code
             continue
@@ -62,7 +62,7 @@ def headings(path):
 # --- links and anchors -------------------------------------------------------
 link_pattern = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
 for document in docs:
-    for target in link_pattern.findall(document.read_text()):
+    for target in link_pattern.findall(document.read_text(encoding='utf-8')):
         if target.startswith(('http://', 'https://', 'mailto:')):
             continue
         path_part, _, anchor = target.partition('#')
@@ -87,13 +87,13 @@ for document in docs:
 # fixtures are the entries in tests/cases.json.
 tests = 0
 for path in sorted(root.glob('*_wbtest.mbt')):
-    tests += len(re.findall(r'^test "', path.read_text(), re.M))
-fixtures = len(json.loads((root / 'tests/cases.json').read_text()))
+    tests += len(re.findall(r'^test "', path.read_text(encoding='utf-8'), re.M))
+fixtures = len(json.loads((root / 'tests/cases.json').read_text(encoding='utf-8')))
 examples = len([p for p in (root / 'examples').glob('*.json')])
 
 expected = {'tests': tests, 'fixtures': fixtures, 'examples': examples}
 
-readme = (root / 'README.md').read_text()
+readme = (root / 'README.md').read_text(encoding='utf-8')
 match = re.search(r'There are (\d+) MoonBit test declarations and (\d+) checked fixture cases',
                   readme)
 if not match:
@@ -105,7 +105,7 @@ else:
     if stated_fixtures != fixtures:
         problems.append(f'README.md says {stated_fixtures} fixture cases, source has {fixtures}')
 
-stats = (root / 'PROJECT_STATS.md').read_text()
+stats = (root / 'PROJECT_STATS.md').read_text(encoding='utf-8')
 
 
 def stat_row(label):
@@ -129,7 +129,7 @@ for label, key in [('MoonBit test declarations', 'tests'),
 
 # --- every shipped script is mentioned somewhere -----------------------------
 # A script nobody documents is a script nobody runs.
-all_text = '\n'.join(doc.read_text() for doc in docs)
+all_text = '\n'.join(doc.read_text(encoding='utf-8') for doc in docs)
 for path in sorted(list((root / 'scripts').glob('*.mjs')) + list((root / 'scripts').glob('*.py'))):
     if path.name not in all_text:
         problems.append(f'scripts/{path.name} is not mentioned in any document')

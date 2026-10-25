@@ -62,6 +62,17 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### Python scripts read files in the platform's default encoding
+
+- `docs.py` and `workflow.py` called `read_text()` without an encoding, which is UTF-8 on Linux
+  and macOS but cp1252 on Windows. The documentation holds characters cp1252 cannot decode - `→`
+  and the Chinese text in the project's proposal and follow-up notes - so `docs.py` raised
+  `UnicodeDecodeError` on the Windows runner and took `verify.sh` with it.
+- Found by the first run of `package-smoke.mjs` on Windows, in the step that runs the shipped
+  documentation checks, which is the branch the platform requirement had just started executing.
+- Every `read_text` in both files now names `encoding='utf-8'`; the other six Python scripts were
+  audited and had none.
+
 ### A script in verify.sh runs on Linux only
 
 - The `macos` and `windows` jobs list their steps explicitly, so a script added to `verify.sh`

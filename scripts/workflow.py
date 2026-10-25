@@ -54,7 +54,7 @@ if not workflow_path.exists():
           'to check here')
     sys.exit(0)
 
-text = workflow_path.read_text()
+text = workflow_path.read_text(encoding='utf-8')
 problems = []
 
 try:
@@ -135,7 +135,7 @@ def scripts_in(text):
     return set(re.findall(r'scripts/([A-Za-z0-9_]+\.(?:mjs|py))', text))
 
 verify_path = root / 'scripts/verify.sh'
-verify_scripts = scripts_in(verify_path.read_text()) if verify_path.exists() else set()
+verify_scripts = scripts_in(verify_path.read_text(encoding='utf-8')) if verify_path.exists() else set()
 # `engine.mjs` is imported by the others, not a step of its own.
 implied = {'engine.mjs'}
 verify_steps = verify_scripts - implied

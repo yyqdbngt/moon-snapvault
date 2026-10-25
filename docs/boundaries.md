@@ -184,6 +184,21 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### Files are read as UTF-8, not as whatever the platform defaults to
+
+`docs.py` and `workflow.py` called `read_text()` without an encoding, which uses the platform
+default: UTF-8 on Linux and macOS, cp1252 on Windows. The documentation contains characters
+cp1252 cannot decode - `→`, and the Chinese text the project's own proposal and follow-up notes
+are written in - so `docs.py` raised `UnicodeDecodeError` on Windows and took `verify.sh` with it.
+
+That was found by the first run of the package check on the Windows runner, in the step that runs
+the shipped documentation checks, which is exactly the branch that had never executed. Every
+`read_text` in both files now names `encoding='utf-8'`; the other six Python scripts were checked
+and had none.
+
+Worth stating plainly: the encoding bug was invisible on the two platforms every local run used.
+It is the second defect the platform-branch requirement found, after its own self-match.
+
 ### A platform branch is tested only by running it there
 
 The `macos` and `windows` jobs list their steps explicitly rather than running `verify.sh`, because
