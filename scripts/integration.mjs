@@ -270,14 +270,57 @@ try {
     } catch (err) {
       if (process.platform !== 'win32') throw err;
     }
-    // `chmod 0o000` makes a file unreadable on a Unix filesystem. NTFS has no such bits:
-    // chmod there only toggles the read-only flag, which does not stop a read, so this
-    // scenario cannot be built on Windows and is not claimed there.
-    if (process.platform !== 'win32') {
-      named.push(['unreadable file', (dir) => {
-        fs.writeFileSync(path.join(dir, 'locked.txt'), 'x');
-        fs.chmodSync(path.join(dir, 'locked.txt'), 0o000);
-      }, /Cannot read locked.txt: permission denied/]);
+    // Making a file unreadable needs different tools per platform: `chmod 0o000` on a Unix
+    // filesystem, a deny ACE via `icacls` on Windows, where chmod only toggles the read-only
+    // flag and does not stop a read.
+    //
+    // The Windows path is not assumed to work. An Administrator token may bypass the ACE, and
+    // the CI runner runs as Administrator, so the lock is *verified* by attempting the read
+    // before the case is included. If the read still succeeds the case is skipped and the
+    // reason is recorded, which is the same discipline as the macOS case-insensitivity probe:
+    // take the coverage when it exists, do not claim it when it does not.
+    const lockFile = (dir) => {
+      const target = path.join(dir, 'locked.txt');
+      fs.writeFileSync(target, 'x');
+      if (process.platform === 'win32') {
+        const user = process.env.USERNAME;
+        execSync(`icacls ${JSON.stringify(target)} /deny "${user}:(R)"`, {stdio: 'ignore'});
+      } else {
+        fs.chmodSync(target, 0o000);
+      }
+    };
+    const unlockFile = (dir) => {
+      const target = path.join(dir, 'locked.txt');
+      if (!fs.existsSync(target)) return;
+      if (process.platform === 'win32') {
+        const user = process.env.USERNAME;
+        execSync(`icacls ${JSON.stringify(target)} /remove:d "${user}"`, {stdio: 'ignore'});
+        return;
+      }
+      fs.chmodSync(target, 0o600);
+    };
+    // Does the lock actually deny a read here? Decided by trying, not by platform name.
+    const lockProbe = path.join(base, 'lock-probe');
+    fs.mkdirSync(lockProbe);
+    let lockWorks = false;
+    try {
+      lockFile(lockProbe);
+      try {
+        fs.readFileSync(path.join(lockProbe, 'locked.txt'));
+        lockWorks = false;
+      } catch {
+        lockWorks = true;
+      }
+    } catch {
+      lockWorks = false;
+    } finally {
+      try { unlockFile(lockProbe); } catch { /* nothing to unlock */ }
+    }
+    if (lockWorks) {
+      named.push(['unreadable file', lockFile, /Cannot read locked.txt: permission denied/]);
+    } else {
+      console.log(`  note: cannot make a file unreadable on ${process.platform}, so the `
+        + 'unreadable-file refusal is not exercised here');
     }
     // A fifo needs mkfifo, which Windows does not have.
     if (process.platform !== 'win32') {
@@ -296,10 +339,10 @@ try {
       assert.ok(message, `${label}: backup should have refused`);
       assert.match(message, expected, `${label}: message must name the entry, got ${message}`);
       assert.doesNotMatch(message, /^[A-Z]+: /, `${label}: raw errno leaked: ${message}`);
-      // Restore write permission so the temporary tree can be removed; only the
-      // unreadable-file case created this file.
-      const locked = path.join(dir, 'locked.txt');
-      if (fs.existsSync(locked)) fs.chmodSync(locked, 0o600);
+      // Release the lock so the temporary tree can be removed. Only the unreadable-file
+      // case created the file, and on Windows leaving a deny ACE behind would make the
+      // cleanup fail with the same permission error the test was provoking.
+      try { unlockFile(dir); } catch { /* already gone */ }
     }
   }
 
