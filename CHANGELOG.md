@@ -62,6 +62,23 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### verify.sh could not run on the package it ships
+
+- The archive contains `scripts/verify.sh`, documented as "one command runs everything", and
+  running it inside an installed package failed at the CI-workflow step: `workflow.py` required
+  `.github/workflows/ci.yml`, and `moon package` does not ship dotfile directories. The package
+  could not verify itself.
+- `workflow.py` now separates the cases. Absent `.github` and `.git` means a package: there is no
+  CI configuration to check, it says so and exits 0. A checkout that lost its workflow still
+  exits 1, because a deleted workflow passing silently is the failure that file prevents.
+- `scripts/package-smoke.mjs` makes it permanent. Using only files inside the archive it runs the
+  shipped CLI cold (which must ask for a build, since packaging ships no `_build`), builds, backs
+  up and restores through `scripts/filesystem.mjs` comparing bytes, runs the shipped white-box
+  tests and matches the count against `PROJECT_STATS.md`, and runs the shipped `docs.py`,
+  `workflow.py` and `check.mjs`.
+- Its first run found the defect above, via the shipped `docs.py`, which reported that the new
+  script was not mentioned in any document - the shipped checks work inside the package.
+
 ### The consumer check now compiles against the package archive
 
 - `consumer-smoke.mjs` copied the source tree into `.mooncakes`. The source tree is already

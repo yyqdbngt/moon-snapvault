@@ -60,6 +60,9 @@ node scripts/defect-matrix.mjs --check-anchors
 # `moon build` does not compile white-box test files, so it reports zero warnings for a tree
 # whose tests warn. `moon check` sees everything; this is the only step that uses it.
 node scripts/warnings.mjs
+# The archive is what a consumer installs; this is the only step that uses the shipped CLI,
+# the shipped tests and the shipped ladder rather than the checkout.
+node scripts/package-smoke.mjs
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs

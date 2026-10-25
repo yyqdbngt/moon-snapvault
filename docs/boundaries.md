@@ -184,6 +184,30 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The archive is usable as a distribution, not only as a library
+
+`consumer-smoke.mjs` proves the archive can be compiled against. `package-smoke.mjs` proves the
+other half: that what a consumer installs is usable the way the README says. It unpacks the
+archive into a temporary directory and, using only files inside it,
+
+- runs the shipped CLI cold and checks it asks for a build rather than crashing on a missing
+  artifact - packaging ships no `_build`, so a first run has nothing to run;
+- builds, then backs up and restores a tree through `scripts/filesystem.mjs`, comparing every
+  restored file byte for byte;
+- runs `moon test` there, because the archive ships the white-box tests and the fixtures, and
+  the count has to match what `PROJECT_STATS.md` claims;
+- runs the shipped `docs.py`, `workflow.py` and `check.mjs`.
+
+That last one found a real defect. `sh scripts/verify.sh` is documented as "one command runs
+everything", and the archive ships it - but running it inside a package failed, because
+`workflow.py` demanded `.github/workflows/ci.yml` and `moon package` does not ship dotfile
+directories. The ladder could not run on the artifact it ships.
+
+`workflow.py` now distinguishes the two cases: no `.github` and no `.git` means this is a package,
+which has no CI configuration to check, and it says so and succeeds. A checkout that has lost its
+workflow still fails, because a deleted workflow silently passing is exactly what that file
+exists to prevent.
+
 ### The published artifact is what gets tested
 
 `scripts/consumer-smoke.mjs` used to copy the source tree into a consumer's `.mooncakes` and

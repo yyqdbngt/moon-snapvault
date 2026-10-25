@@ -96,6 +96,7 @@ node scripts/compat.mjs
 node scripts/release-claims.mjs
 node scripts/defect-matrix.mjs --check-anchors
 node scripts/warnings.mjs
+node scripts/package-smoke.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs
 node scripts/stats.mjs

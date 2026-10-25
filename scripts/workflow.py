@@ -40,8 +40,19 @@ except ImportError:
 
 root = Path(__file__).resolve().parents[1]
 workflow_path = root / '.github/workflows/ci.yml'
+# Absent is only a defect inside a checkout. `moon package` does not ship dotfile directories,
+# so an installed package has no `.github` at all, and `sh scripts/verify.sh` - which the README
+# offers as "one command runs everything" - failed on the very artifact it ships. The two cases
+# are distinguishable: a checkout that lost its workflow still has a `.github` directory, or a
+# `.git` one. Treating both as "missing" would either break the package or let a deleted
+# workflow pass, and the second is the failure this file exists to prevent.
 if not workflow_path.exists():
-    sys.exit('workflow: .github/workflows/ci.yml is missing')
+    looks_like_a_checkout = (root / '.github').exists() or (root / '.git').exists()
+    if looks_like_a_checkout:
+        sys.exit('workflow: .github/workflows/ci.yml is missing')
+    print('Workflow: not a checkout (no .github and no .git), so there is no CI configuration '
+          'to check here')
+    sys.exit(0)
 
 text = workflow_path.read_text()
 problems = []
