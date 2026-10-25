@@ -49,12 +49,33 @@ test "audit and retention agree on a spare object" {
       ),
     ]),
   )
+  // The spare object is stored inside the one snapshot the plan keeps, so no deletion frees it:
+  // it is stranded rather than collectible. This assertion used to say the opposite, which is how
+  // the defect was written down as expected behaviour - the plan reported bytes as reclaimable
+  // while naming no snapshot whose removal would reclaim them.
+  assert_eq(get(plan, "collectible_objects"), strings([]))
+  assert_eq(get(plan, "collectible_bytes"), Number(0.0))
   assert_eq(
-    get(plan, "collectible_objects"),
+    get(plan, "stranded_objects"),
     strings(["4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"]),
   )
+  assert_eq(get(plan, "stranded_bytes"), Number(2.0))
   assert_eq(get(plan, "live_bytes"), Number(3.0))
-  assert_eq(get(plan, "collectible_bytes"), Number(2.0))
+  // And the three buckets partition the object set, so no byte escapes the accounting: every
+  // object is either needed, freed by deleting a named snapshot, or stored where only a squash
+  // reaches it. A fourth possibility would mean a byte nobody can account for.
+  let count = fn(field : String) -> Int32 {
+    match get(plan, field) {
+      Array(items) => items.length()
+      _ => -1
+    }
+  }
+  assert_eq(
+    count("reachable_objects") +
+    count("collectible_objects") +
+    count("stranded_objects"),
+    2,
+  )
 }
 
 ///|

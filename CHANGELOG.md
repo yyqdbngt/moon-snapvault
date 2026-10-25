@@ -62,6 +62,21 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### `collectible_bytes` promised bytes no deletion could reclaim
+
+- An unreferenced object stored inside a snapshot the plan keeps was counted as collectible. The
+  plan reported its bytes as reclaimable while naming no snapshot to delete, so following the plan
+  freed none of them. Found by asking whether `collectible_bytes` can be non-zero with an empty
+  `drop_snapshots` - it could.
+- The plan now partitions every object into three buckets with one action each: `reachable`
+  (keep), `collectible` (delete `drop_snapshots`), and `stranded` (unreferenced but stored in a
+  kept snapshot - `squash` it). Verified that squashing drops a stranded object and leaves the
+  files identical.
+- The defect had been written down as expected behaviour twice - a white-box assertion and a
+  fixture named "retention lists a spare object as collectible" - and the oracle in `fuzz.py`
+  reproduced the same definition, so both implementations agreed and neither noticed. The oracle
+  now computes the three buckets and asserts they partition the object set.
+
 ### Randomized histories against the oracle
 
 - `scripts/history.py` drives the `fuzz.py` oracle through random sequences - adds, modifies,

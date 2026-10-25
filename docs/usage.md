@@ -80,8 +80,17 @@ parent snapshots go.
 | `collectible_objects` | objects no surviving snapshot references |
 | `live_bytes` | bytes held by the reachable objects, counted once each |
 | `collectible_bytes` | bytes held by the collectible objects, counted once each |
+| `stranded_objects` | objects no surviving file references that are stored inside a snapshot this plan keeps |
+| `stranded_bytes` | bytes held by the stranded objects, counted once each |
 | `plan_only` | always `true`: the plan describes deletions and performs none |
 | `scope` | what the byte counts cover, as a sentence, so a reader need not infer it |
+
+`collectible` means freed by deleting the snapshots named in `drop_snapshots`, which is not the
+same as "no surviving file references it". An object nothing points at can still be stored inside
+a snapshot the plan keeps, and deleting snapshots does nothing for it - it is reported as
+`stranded` instead, and `squash` is what drops it, because squashing rebuilds the manifest from the
+files it lists. The three buckets partition the stored objects, so every byte has exactly one
+action: keep it, delete the named snapshots, or squash the snapshot holding it.
 
 Keeping a delta keeps its parent: deleting the parent leaves the delta's manifest
 pointing at a checksum nothing provides, and `restore` then fails even though

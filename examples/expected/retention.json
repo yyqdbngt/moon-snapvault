@@ -14,6 +14,8 @@
   "collectible_objects": [],
   "live_bytes": 6,
   "collectible_bytes": 0,
+  "stranded_objects": [],
+  "stranded_bytes": 0,
   "plan_only": true,
-  "scope": "objects and chain links these snapshots need; no files are deleted"
+  "scope": "objects and chain links these snapshots need; no files are deleted; collectible bytes are freed by deleting drop_snapshots; stranded bytes are stored inside a snapshot this plan keeps and need that snapshot squashed"
 }

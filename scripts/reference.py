@@ -85,8 +85,18 @@ assert report['valid'] is True, report
 assert report['objects_total'] == 2 and report['objects_checked'] == 2, report
 assert report['referenced_objects'] == 1 and report['unreferenced_objects'] == 1, report
 plan = run({'operation': 'retention', 'snapshots': [{'id': 'one', 'snapshot': with_spare}]})
-assert plan['collectible_objects'] == [spare_hash], plan
-assert plan['collectible_bytes'] == 2 and plan['live_bytes'] == 3, plan
+# The spare object sits inside the one snapshot the plan keeps, so no deletion frees it: it is
+# stranded, and `squash` is what drops it. This oracle asserted `collectible_objects` - the same
+# definition the core used, so both agreed while the plan promised bytes nothing could reclaim.
+assert plan['collectible_objects'] == [], plan
+assert plan['collectible_bytes'] == 0 and plan['live_bytes'] == 3, plan
+assert plan['stranded_objects'] == [spare_hash], plan
+assert plan['stranded_bytes'] == 2, plan
+assert plan['drop_snapshots'] == [], plan
+# And squashing really does drop it, which is what makes the advice actionable.
+folded = run({'operation': 'squash', 'snapshot': with_spare})['snapshot']
+assert spare_hash not in folded['objects'], folded['objects']
+assert folded['files'] == with_spare['files'], 'squash changed the file list'
 
 corrupt = json.loads(json.dumps(base))
 corrupt['objects']['0' * 64] = [1, 2, 3]

@@ -234,7 +234,7 @@
     "error": false
   },
   {
-    "name": "retention lists a spare object as collectible",
+    "name": "retention calls a spare object stranded, not collectible",
     "request": {
       "operation": "retention",
       "snapshots": [
@@ -270,15 +270,21 @@
       "keep_snapshots": [
         "one"
       ],
+      "required_snapshots": [],
+      "external_parents": [],
+      "drop_snapshots": [],
       "reachable_objects": [
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
       ],
-      "collectible_objects": [
+      "collectible_objects": [],
+      "live_bytes": 3,
+      "collectible_bytes": 0,
+      "stranded_objects": [
         "4a60bf7d4bc1e485744cf7e8d0860524752fca1ce42331be7c439fd23043f151"
       ],
-      "live_bytes": 3,
-      "collectible_bytes": 2,
-      "plan_only": true
+      "stranded_bytes": 2,
+      "plan_only": true,
+      "scope": "objects and chain links these snapshots need; no files are deleted; collectible bytes are freed by deleting drop_snapshots; stranded bytes are stored inside a snapshot this plan keeps and need that snapshot squashed"
     },
     "error": false
   },
@@ -2943,8 +2949,10 @@
       "collectible_objects": [],
       "live_bytes": 5,
       "collectible_bytes": 0,
+      "stranded_objects": [],
+      "stranded_bytes": 0,
       "plan_only": true,
-      "scope": "objects and chain links these snapshots need; no files are deleted"
+      "scope": "objects and chain links these snapshots need; no files are deleted; collectible bytes are freed by deleting drop_snapshots; stranded bytes are stored inside a snapshot this plan keeps and need that snapshot squashed"
     },
     "error": false
   },

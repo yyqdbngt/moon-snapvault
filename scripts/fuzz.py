@@ -573,9 +573,22 @@ def run_iteration(rng, index):
     supplied = set(base['objects']) | set(delta['objects'])
     check(tag + ' retention/reachable', set(plan['reachable_objects']) == reachable,
           f"{sorted(set(plan['reachable_objects']) ^ reachable)}")
+    # Collectible means "freed by deleting the snapshots the plan names", which is not the same as
+    # "no surviving file references it": an object stored inside a kept snapshot is unreferenced
+    # and stays on disk. This oracle used the second definition, matching the core's mistake, so
+    # both agreed and the defect looked like correct behaviour.
+    stored_in_live = set()
+    for snapshot_id in live:
+        stored_in_live |= set(by_id[snapshot_id]['objects'])
+    # Every link in this fixture is named, so "stored in a live snapshot" is the whole story.
+    collectible_expected = (supplied - reachable) - stored_in_live
+    stranded_expected = (supplied - reachable) & stored_in_live
     check(tag + ' retention/collectible',
-          set(plan['collectible_objects']) == supplied - reachable,
-          f"{sorted(set(plan['collectible_objects']) ^ (supplied - reachable))}")
+          set(plan['collectible_objects']) == collectible_expected,
+          f"{sorted(set(plan['collectible_objects']) ^ collectible_expected)}")
+    check(tag + ' retention/stranded',
+          set(plan['stranded_objects']) == stranded_expected,
+          f"{sorted(set(plan['stranded_objects']) ^ stranded_expected)}")
     live_bytes = 0
     for digest in reachable:
         payload = resolve(walk(delta, [base]), digest)
@@ -584,12 +597,21 @@ def run_iteration(rng, index):
         live_bytes += len(payload)
     check(tag + ' retention/live', plan['live_bytes'] == live_bytes,
           f"{plan['live_bytes']} vs {live_bytes}")
-    collectible = 0
-    for digest in supplied - reachable:
+    def size_of(digest):
         holder = base if digest in base['objects'] else delta
-        collectible += len(payload_of(holder, digest))
+        return len(payload_of(holder, digest))
+
+    collectible = sum(size_of(digest) for digest in collectible_expected)
+    stranded = sum(size_of(digest) for digest in stranded_expected)
     check(tag + ' retention/collectible-bytes', plan['collectible_bytes'] == collectible,
           f"{plan['collectible_bytes']} vs {collectible}")
+    check(tag + ' retention/stranded-bytes', plan['stranded_bytes'] == stranded,
+          f"{plan['stranded_bytes']} vs {stranded}")
+    # The three buckets partition the stored objects, so no byte escapes the accounting.
+    check(tag + ' retention/buckets-partition',
+          reachable | collectible_expected | stranded_expected == supplied
+          and not (collectible_expected & stranded_expected),
+          'the three buckets do not partition the object set')
     check(tag + ' retention/keep',
           sorted(plan['keep_snapshots']) == sorted(keep), str(plan['keep_snapshots']))
     check(tag + ' retention/required',

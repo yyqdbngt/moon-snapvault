@@ -184,6 +184,34 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### A retention plan promises only what a deletion can deliver
+
+`collectible` used to mean "no surviving file references it". That is not the same as "deleting the
+snapshots this plan names frees it": an object nothing points at can still be stored inside a
+snapshot the caller keeps, and the plan reported its bytes as reclaimable while naming nothing to
+delete. Following the plan reclaimed zero of them.
+
+Found by asking the arithmetic question rather than reading the code: if `collectible_bytes` is
+non-zero while `drop_snapshots` is empty, the number cannot be delivered. It was, so the plan now
+classifies every object into exactly one of three buckets:
+
+| Bucket | Meaning | Action |
+|---|---|---|
+| `reachable_objects` | referenced by a surviving file | keep |
+| `collectible_objects` | unreferenced, and only in snapshots the plan deletes | delete `drop_snapshots` |
+| `stranded_objects` | unreferenced, and stored in a snapshot the plan keeps | `squash` that snapshot |
+
+The third bucket is new, and the advice is real rather than decorative: `squash` rebuilds the
+manifest from the files it lists, so an unreferenced object is dropped - verified by squashing a
+snapshot that held one and watching the object count fall while the files stayed identical.
+
+The old behaviour was written down twice as expected: a white-box test asserted the spare object
+landed in `collectible_objects`, and a fixture was named "retention lists a spare object as
+collectible". Both encoded the defect. The oracle in `scripts/fuzz.py` made the same mistake -
+`supplied - reachable` - so the two independent implementations agreed with each other and the
+defect looked like correct behaviour. That is the case an independent oracle cannot catch on its
+own, and the reason the arithmetic question was worth asking.
+
 ### Randomized histories, not one fixed script
 
 The five-step history in the integration suite is one path through the sequence. A user's path is
