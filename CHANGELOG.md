@@ -52,6 +52,19 @@ resolves the published 0.2.0 until a release is published.
   and the published version together.
 - Verified: changing the expected value by one nibble fails the test on the backend that ran it.
 
+### The performance gate was flaky, and is now honest about where it applies
+
+- It failed at 288 ms against a 140 ms baseline while the host had a load average of 11. A
+  check that fails because the machine is busy is a check that gets switched off, so a
+  measurement over the threshold is now retried three more times before it is believed - a real
+  regression does not get faster when the load subsides.
+- Retrying alone was not enough, because the load persisted. The baseline belongs to the CI
+  runner, not to whatever machine runs the ladder, so enforcement now follows that: it fails on
+  CI and reports without failing elsewhere, with `SNAPVAULT_ENFORCE_PERF=1` to override.
+- Two bugs in the retry itself: it ran after the scratch directory had been removed, and it
+  reused a helper that assumed that directory still existed. Verified both ways with a 300 ms
+  per-file delay injected - local reports, CI fails on the best of 12 runs.
+
 ### Backward compatibility with the published 0.2.0
 
 - `tests/compat/` holds two snapshots produced by `yyqdbngt/moon_snapvault@0.2.0` from

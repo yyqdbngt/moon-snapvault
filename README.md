@@ -6,7 +6,7 @@ Content-addressed snapshots, implemented in MoonBit with a JSON CLI and reusable
 - Published package: `yyqdbngt/moon_snapvault@0.2.0`
 - Module in `main`: 0.3.0 (unreleased - see [the format note](#2026-10-24-format-2-and-audit-contract-unreleased))
 - License: Apache-2.0
-- Release scope: **0.2.0 is the published release**; `main` carries the unreleased 0.3.0 work described below. The broader competition proposal in `docs/proposal.md` is a reference design, not a claim that every planned capability is implemented.
+- Release scope: **0.2.0 is the published release**; `main` carries the unreleased 0.3.0 work described below, with a migration note in [docs/release-0.3.0.md](docs/release-0.3.0.md). The broader competition proposal in `docs/proposal.md` is a reference design, not a claim that every planned capability is implemented.
 
 ## Implemented
 
@@ -93,6 +93,7 @@ node scripts/doc-commands.mjs
 node scripts/coverage.mjs
 node scripts/cli-contract.mjs
 node scripts/compat.mjs
+node scripts/release-claims.mjs
 node scripts/examples.mjs
 node scripts/durability.mjs
 node scripts/stats.mjs

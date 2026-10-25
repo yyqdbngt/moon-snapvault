@@ -46,6 +46,7 @@ jobs:
       - run: node scripts/consumer-smoke.mjs
       - run: node scripts/cli-contract.mjs
       - run: node scripts/compat.mjs
+      - run: node scripts/release-claims.mjs
       - run: node scripts/examples.mjs
       - run: node scripts/durability.mjs
       - run: node scripts/check.mjs

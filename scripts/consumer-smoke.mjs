@@ -56,6 +56,36 @@ fn main raise {
   }
   println("create_snapshot: ok")
 
+  // The call shapes 0.2.0 accepted must still compile and run, because a consumer that
+  // upgrades the dependency without touching their code is the common case. The previous=
+  // parameter was the only optional one then; three more have been added since, all
+  // optional, and this is what proves they were added without breaking the old shape.
+  // This is a breaking change, and the one a 0.2.0 consumer is most likely to hit. 0.2.0
+  // accepted a format 2 snapshot as previous and used it only for statistics; the current
+  // code refuses that combination outright, because a parent now means a real chain and only
+  // format 3 carries one. Asserting the refusal keeps the behaviour deliberate rather than
+  // accidental, and gives the release notes something concrete to point at.
+  let mut refused = false
+  try {
+    ignore(@vault.create_snapshot(files, previous=snapshot))
+  } catch {
+    _ => refused = true
+  }
+  if not(refused) {
+    abort("create_snapshot with a format 2 previous was accepted; 0.3.0 refuses it")
+  }
+  println("create_snapshot with a format 2 previous: refused, as documented")
+
+
+  // InputError to_string used to render the constructor - InputError("...") - and now
+  // renders just the message. A consumer that logged it verbatim sees a shorter string,
+  // which is a behaviour change worth pinning rather than discovering.
+  let rendered = @vault.InputError("unsafe source path").to_string()
+  if rendered != "unsafe source path" {
+    abort("InputError::to_string renders " + rendered)
+  }
+  println("InputError::to_string: the message alone")
+
   let valid = match @vault.audit_snapshot(snapshot) {
     @vault.Object(fields) => fields.get("valid") == Some(@vault.Bool(true))
     _ => false

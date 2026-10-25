@@ -161,6 +161,16 @@ Linux backup is 190 ms on the runner and 343 ms on the development machine. That
 is what the factor of two absorbs, and it is why the threshold cannot be tightened much
 further without making the check machine-specific.
 
+Enforcement is tied to the machine the baseline describes rather than to the platform. A
+workstation is not the CI runner even when it runs the same operating system, and the
+difference is not noise: with a load average of 11 the workstation measured 268 ms against a
+130 ms runner baseline, and no amount of retrying fixes a busy host. So the check fails on CI,
+where the numbers were recorded, and reports without failing elsewhere; `SNAPVAULT_ENFORCE_PERF=1`
+overrides that for a deliberate local run. It also retries a measurement that exceeds the
+threshold before believing it - three more attempts after the first - because a real regression
+does not get faster when the load subsides. Verified: with a 300 ms per-file delay injected, the
+retries exhaust and the failure is reported on 12 runs; without it, local runs report and pass.
+
 When a platform has no baseline, the check measures and prints its numbers rather than
 skipping silently, so the figures needed to record one appear in that platform's CI log. The
 absence of a baseline is not a regression, so it exits 0.
