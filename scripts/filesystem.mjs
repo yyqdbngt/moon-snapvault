@@ -496,19 +496,28 @@ export function squashInPieces(snapshot, parents, format = 3) {
   };
 }
 
-export function squash(snapshotFile, destination, chain = [], format = 3) {
+// `format` is deliberately optional and undefined means "keep the one the snapshot
+// already has", which is what the core does when the request omits it. The first version
+// defaulted to 3 here, so `filesystem.mjs squash` on a format 2 snapshot produced a format 3
+// file with a different checksum - a different snapshot from the one the library returns for
+// the same input, and there was no way to ask for the library's answer.
+export function squash(snapshotFile, destination, chain = [], format = undefined) {
   const snapshot = readSnapshot(snapshotFile);
   const parents = readChain(chain);
-  const request = {operation: 'squash', snapshot, parents, format};
+  const target = format ?? snapshot.version;
+  const request = {operation: 'squash', snapshot, parents};
+  // Omitted rather than sent as a value the core would then have to interpret: "no format" and
+  // "format 2" have to stay distinguishable for the default to mean anything.
+  if (format !== undefined) request.format = format;
   const text = JSON.stringify(request);
   const result = text.length <= REQUEST_LIMIT
     ? engineText(text)
-    : squashInPieces(snapshot, parents, format);
+    : squashInPieces(snapshot, parents, target);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
   publishSnapshot(result.snapshot, output);
   const statistics = result.statistics ?? {
-    format,
+    format: target,
     chain_depth: result.chain_depth ?? null,
     files: result.snapshot.files.length,
     objects: result.objects,
@@ -700,6 +709,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]]',
       '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P ...]',
       '  filesystem.mjs squash  SNAPSHOT DEST [PARENT...] [--format N]',
+      '      --format is optional; without it the snapshot keeps its format',
     ].join('\n');
     // Argument problems are usage errors and exit 2; everything else is exit 1. Marking
     // them is more reliable than matching the message text, which is how `--format 9`
@@ -711,7 +721,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     };
     const argv = process.argv.slice(2);
     const paths = [];
-    let format = 3;
+    // Left undefined unless `--format` is given, so the core keeps the snapshot's format.
+    let format = undefined;
     const positional = [];
     for (let i = 0; i < argv.length; i++) {
       if (argv[i] === '--path') {

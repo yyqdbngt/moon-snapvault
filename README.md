@@ -143,8 +143,9 @@ at a time; the adapter does that automatically, so restore and squash work on an
 chain size that fits in memory.
 
 `squash` folds a chain into one self-contained snapshot, keeping each reachable
-object once and dropping unreferenced ones; squashing to format 2 produces a file
-byte-identical to creating the same tree directly.
+object once and dropping unreferenced ones. Without `--format` the snapshot keeps the
+format it had, so folding a chain does not change its checksum; `--format 2` re-encodes
+it, and produces a file byte-identical to creating the same tree directly.
 
 A 3 MiB tree with one changed file: base snapshot 4.1 MB and 647 ms, delta 752 B
 and 702 ms - 0.02% of the base on disk, but priced like a full backup in time

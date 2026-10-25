@@ -130,6 +130,33 @@ try {
       problems.push(`squash --format 2 produced format ${folded.format}`);
     }
 
+    // Without `--format`, squash must keep the format the snapshot already has and therefore
+    // keep its checksum, which is what the core does when the request omits a format. The
+    // adapter used to default to 3 here, so squashing a format 2 snapshot produced a different
+    // snapshot than the library returns for the same input - and there was no way to ask for
+    // the library's answer, since `--format` only takes a number.
+    {
+      const original = JSON.parse(fs.readFileSync(treeSnapshot, 'utf8'));
+      const kept = check('adapter: squash keeps the format',
+        invoke(adapter, ['squash', treeSnapshot, path.join(work, 'kept.json')]), 0);
+      if (kept && kept.format !== original.version) {
+        problems.push(`squash without --format turned format ${original.version} into `
+          + `${kept.format}; the core keeps the format`);
+      }
+      const written = JSON.parse(fs.readFileSync(path.join(work, 'kept.json'), 'utf8'));
+      if (written.checksum !== original.checksum) {
+        problems.push('squash without --format changed the snapshot checksum from '
+          + original.checksum.slice(0, 16) + ' to ' + written.checksum.slice(0, 16)
+          + '; a compacted snapshot is the same snapshot');
+      }
+      // And conversion is still available when it is asked for by name.
+      const converted = check('adapter: squash --format 3',
+        invoke(adapter, ['squash', treeSnapshot, path.join(work, 'as3.json'), '--format', '3']), 0);
+      if (converted && converted.format !== 3) {
+        problems.push(`squash --format 3 produced format ${converted.format}`);
+      }
+    }
+
     // A flag with no value, a value out of range, and a flag that does not exist must all
     // be named rather than silently treated as a path.
     for (const [label, args] of [

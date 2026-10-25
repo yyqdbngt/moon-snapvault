@@ -184,6 +184,23 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The CLI and the library agree on defaults
+
+`squash` without a format keeps the format the snapshot already has, in the core and now in
+`filesystem.mjs`. The adapter used to default `--format` to 3, so folding a format 2 chain
+produced a format 3 file with a different checksum - a different snapshot from the one the
+library returns for the same input, and no way to ask for the library's answer, because
+`--format` only takes a number.
+
+That matters because the checksum is the snapshot's identity: a child snapshot's `parent` names
+it, and a caller who recorded it finds nothing matches afterwards. Compacting a chain is supposed
+to leave the same snapshot behind.
+
+Found by exercising every operation against a format 1 snapshot and noticing that the core's
+answer and the CLI's answer differed. The other format choices in the adapter were checked at the
+same time and agree with the core: `backup` uses 2 with no previous and 3 with one, which is what
+the core requires, and the piecewise path uses 3 because it always has a parent.
+
 ### The serializer's round-trip law is tested by class, not by example
 
 Everything rests on one property: text the core writes can be read back as the value it came from.

@@ -101,6 +101,11 @@ objects the chain lacks; the manifest still lists every path.
 
 | `{"operation": "squash", "snapshot": <delta>, "parents": [<base>]}` | self-contained snapshot, `parent: null` |
 | `{"operation": "squash", ..., "format": 2}` | same, re-encoded as format 2 |
+
+Omitting `format` keeps the format the snapshot already has, so the result is the same
+snapshot with the chain folded in and its checksum unchanged. `filesystem.mjs squash`
+follows the same rule: `--format` converts only when it is given by name. It used to
+default to 3, which turned a format 2 snapshot into a different one.
 | `{"operation": "restore", ..., "paths": ["docs"]}` | only `docs` and below, `selected`/`total_files` |
 | `{"operation": "restore", ..., "paths": ["nope"]}` | error: `restore path not found in snapshot` |
 

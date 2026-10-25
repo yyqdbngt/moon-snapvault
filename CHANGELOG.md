@@ -62,6 +62,17 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### `filesystem.mjs squash` no longer changes the snapshot's format
+
+- Without `--format`, `squash` kept the format in the core but the adapter forced 3, so folding a
+  format 2 chain produced a format 3 file with a different checksum - a different snapshot from
+  the one the library returns for the same input. Since a child snapshot's `parent` names its
+  parent by checksum, that broke the identity a caller had recorded.
+- `--format` is now optional and means "convert" only when given by name; omitting it keeps the
+  format and the checksum. `--format 3` still converts.
+- Found by running every operation against a format 1 snapshot and comparing the library's answer
+  with the CLI's. The adapter's other format choices were checked at the same time and agree.
+
 ### The serializer round-trip is tested by class, and two boundaries are pinned
 
 - `roundtrip_wbtest.mbt` asserts that `parse_value(stringify(v))` equals `v` for every scalar
