@@ -184,6 +184,39 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### A history, not a step
+
+Every case in the suite performs one or two operations on a tree that was just built. A user runs
+the same handful of commands for months, so the integration suite now walks a five-step history -
+the tree changing, each snapshot linking to the last - folds the chain, keeps going, and restores
+every point in it.
+
+Two things only a history can catch: state that accumulates wrongly across many steps, and an old
+snapshot that stops restoring once the chain has been compacted. Folding is an addition, not a
+replacement - the earlier links still restore from their own chain - and that is now asserted
+rather than assumed.
+
+The history found a real defect the first time it ran. Folding the chain and then asking for an
+old link without the originals produced:
+
+    {"error":"cannot restore corrupted snapshot"}
+
+which names the wrong problem twice over. The snapshot is not corrupt, and the report already knew
+why: `audit` returns `missing parent snapshot` with the checksum, alongside `missing object` for
+every file that could not resolve. `restore` discarded that and said "corrupted". A reader goes
+looking for a damaged file when all they need to do is pass the link they already have.
+
+`restore` and `squash` now share one function that picks the most specific reason: a missing parent
+first, because a link whose parent is absent cannot resolve its objects either and "missing object"
+would send the caller to the wrong place, then the first issue that names a path - one damaged
+object produces a digest mismatch on the object and a size mismatch on each file that references
+it, and the second is the one a reader can act on.
+
+The refusal is also emitted as a message now rather than an envelope. `engineText` used to throw
+`result.stdout` whole, so a refusal reached the user as
+`{"error":"{\"error\":\"...\"}\n"}` - text that has to be unescaped in your head is not an
+error message.
+
 ### The two layers are compared with each other, not only tested separately
 
 The core is covered by the white-box suite and the fixtures; the adapter by the integration suite

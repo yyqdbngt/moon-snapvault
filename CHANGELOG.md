@@ -62,6 +62,22 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### A five-step history in the integration suite, and two defects it found
+
+- Every existing case performs one or two operations on a freshly built tree. The suite now walks a
+  five-step history - the tree changing, each snapshot linking to the last - folds the chain, keeps
+  going, and restores every point. That covers state accumulating across steps and an old snapshot
+  still restoring after the chain was compacted, which nothing tested.
+- **A refused restore was reported as corruption.** With the parent links gone, `restore` said
+  `cannot restore corrupted snapshot` where `audit` had already reported `missing parent snapshot`
+  with the checksum. The two call for different actions - pass the link, or find a damaged file -
+  and the message named the wrong one. `restore` and `squash` now share a function that picks the
+  most specific reason, preferring a missing parent and then the first issue that names a path.
+- **A refusal reached the user as a nested envelope.** `engineText` threw `result.stdout` whole, so
+  a failure surfaced as `{"error":"{\"error\":\"...\"}\n"}`. It now throws the message.
+- Three fixtures that asserted the old wording were updated; two of them were missing-parent cases
+  mis-described as damage, which is the same defect seen from the test side.
+
 ### The two-layer comparison covers every format and selective restore
 
 - It ran on whatever `backup` writes, which is format 2. Format 1 is what 0.2.0 wrote and what a

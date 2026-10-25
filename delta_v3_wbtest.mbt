@@ -299,3 +299,137 @@ test "retention counts inherited objects" {
   assert_eq(get(plan, "collectible_bytes"), Number(0.0))
   assert_eq(get(plan, "plan_only"), Bool(true))
 }
+
+///|
+/// A refusal has to name the problem that actually exists. Two of them call for completely
+/// different actions - pass the missing link, or find the damaged file - and until this was
+/// checked, both were reported as "cannot restore corrupted snapshot". Found by walking a
+/// five-step history: fold the chain, then ask for an old link without its parents, and the
+/// answer pointed at corruption that was not there.
+test "a refusal names the missing parent before anything else" {
+  let kept = fn(blob : Value) -> Value {
+    match blob {
+      Object(fields) => {
+        let out : Map[String, Value] = Map([])
+        out["version"] = fields["version"]
+        out["parent"] = fields.get("parent").unwrap_or(Null)
+        out["files"] = fields["files"]
+        out["objects"] = fields["objects"]
+        out["checksum"] = fields["checksum"]
+        Object(out)
+      }
+      _ => blob
+    }
+  }
+  let base = create_snapshot([
+    Object(Map([("path", String("a.txt")), ("text", String("one"))])),
+  ])
+  let baseSnapshot = match base {
+    Object(fields) => fields.get("snapshot").unwrap_or(Null)
+    _ => Null
+  }
+  let delta = create_snapshot(
+    [
+      Object(Map([("path", String("a.txt")), ("text", String("one"))])),
+      Object(Map([("path", String("b.txt")), ("text", String("two"))])),
+    ],
+    previous=kept(baseSnapshot),
+    format=3,
+  )
+  let tip = match delta {
+    Object(fields) => fields.get("snapshot").unwrap_or(Null)
+    _ => Null
+  }
+  // Without the parent, the message has to say so and name the checksum to pass.
+  let without = try {
+    ignore(
+      run(Object(Map([("operation", String("restore")), ("snapshot", tip)]))),
+    )
+    "accepted"
+  } catch {
+    InputError(message) => message
+    _ => "other error"
+  }
+  if !without.contains("missing the parent snapshot") {
+    abort("a refusal did not name the missing parent: " + without)
+  }
+  let parentChecksum = match baseSnapshot {
+    Object(fields) =>
+      match fields.get("checksum") {
+        Some(String(text)) => text
+        _ => ""
+      }
+    _ => ""
+  }
+  if !without.contains(parentChecksum) {
+    abort("a refusal did not name the checksum to pass: " + without)
+  }
+  // A damaged object inside an otherwise complete snapshot is reported as damage, and a file
+  // that references it is named so a reader can find it. The manifest needs a valid checksum
+  // before the digest comparison is reached, so it is assembled rather than hand-written - a
+  // first attempt used a made-up checksum and was refused for that instead.
+  let digestOfX = digest(b"x")
+  let assembled = run(
+    Object(
+      Map([
+        ("operation", String("assemble")),
+        (
+          "files",
+          Array([
+            Object(
+              Map([
+                ("path", String("a.txt")),
+                ("digest", String(digestOfX)),
+                ("size", Number(1.0)),
+                ("mode", Number(420.0)),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  )
+  let damaged = match assembled {
+    Object(fields) => {
+      let out : Map[String, Value] = Map([])
+      // `assemble` calls it `format`; a snapshot manifest calls the same number `version`.
+      out["version"] = fields["format"]
+      out["parent"] = Null
+      out["files"] = fields["files"]
+      out["objects"] = Object(Map([(digestOfX, String("ZZZZ"))]))
+      out["checksum"] = fields["checksum"]
+      Object(out)
+    }
+    _ => Null
+  }
+  let damageReason = try {
+    ignore(
+      run(
+        Object(Map([("operation", String("restore")), ("snapshot", damaged)])),
+      ),
+    )
+    "accepted"
+  } catch {
+    InputError(message) => message
+    _ => "other error"
+  }
+  if !damageReason.contains("damaged snapshot") {
+    abort("damage was not reported as damage: " + damageReason)
+  }
+  if !damageReason.contains("a.txt") {
+    abort("damage did not name the affected file: " + damageReason)
+  }
+  // And squash explains itself the same way, because the same function decides.
+  let squashReason = try {
+    ignore(
+      run(Object(Map([("operation", String("squash")), ("snapshot", tip)]))),
+    )
+    "accepted"
+  } catch {
+    InputError(message) => message
+    _ => "other error"
+  }
+  if !squashReason.contains("missing the parent snapshot") {
+    abort("squash did not name the missing parent: " + squashReason)
+  }
+}

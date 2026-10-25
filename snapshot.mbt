@@ -872,6 +872,84 @@ fn unresolved_selection(
 ///|
 /// Resolves the selected files through the chain and returns the payload in this
 /// snapshot's own encoding, so the host adapter decodes with one call.
+
+///|
+/// The most specific reason an audit report gives for refusing a restore.
+///
+/// The order matters: a missing parent is reported before a missing object, because a link whose
+/// parent is absent cannot have its objects resolved either - saying "missing object" first would
+/// send the caller looking for content that is not the problem.
+fn refusal_reason(report : Value) -> String {
+  let issues = match report {
+    Object(fields) =>
+      match fields.get("issues") {
+        Some(Array(items)) => items
+        _ => []
+      }
+    _ => []
+  }
+  let mut missing_parent : String? = None
+  let mut other : String? = None
+  for issue in issues {
+    let reason = match issue {
+      Object(fields) =>
+        match fields.get("reason") {
+          Some(String(text)) => text
+          _ => ""
+        }
+      _ => ""
+    }
+    let object = match issue {
+      Object(fields) =>
+        match fields.get("object") {
+          Some(String(text)) => text
+          _ => ""
+        }
+      _ => ""
+    }
+    if reason == "missing parent snapshot" && missing_parent is None {
+      missing_parent = Some(object)
+    } else if reason != "missing parent snapshot" {
+      // Prefer an issue that names a path. One damaged object produces two issues - the digest
+      // mismatch on the object itself, which has no path, and the size mismatch on each file that
+      // references it - and the second is the one a reader can act on. Taking the first issue
+      // printed a checksum and nothing else.
+      let path = match issue {
+        Object(fields) =>
+          match fields.get("path") {
+            Some(String(text)) => text
+            _ => ""
+          }
+        _ => ""
+      }
+      let candidate = if path == "" {
+        reason + " (" + object + ")"
+      } else {
+        reason + " at " + path + " (" + object + ")"
+      }
+      let better = match other {
+        None => true
+        Some(existing) => path != "" && !existing.contains(" at ")
+      }
+      if better {
+        other = Some(candidate)
+      }
+    }
+  }
+  match missing_parent {
+    Some(checksum) =>
+      "the chain is missing the parent snapshot " +
+      checksum +
+      "; pass it, or squash the chain into one snapshot first"
+    None =>
+      match other {
+        Some(detail) => "damaged snapshot: " + detail
+        None => "damaged snapshot"
+      }
+  }
+}
+
+///|
 fn restore_with(
   snapshot : Value,
   parents : Array[Value],
@@ -879,7 +957,12 @@ fn restore_with(
 ) -> Value raise {
   let report = audit_with(snapshot, parents)
   if get(report, "valid") != Bool(true) {
-    raise InputError("cannot restore corrupted snapshot")
+    // The report already knows *why*, and the reasons call for different actions: a missing
+    // parent is a chain problem - pass the link, or fold the chain first - while a mismatched
+    // digest is damaged content. Reporting both as "corrupted snapshot" sent someone looking for
+    // a corrupt file when they had simply not passed the parent, which is how this was found:
+    // a five-step history, folded, then asked to restore an old link without the originals.
+    raise InputError(refusal_reason(report))
   }
   let (version, _, listed) = manifest(snapshot)
   let missing = unresolved_selection(selection, listed)
@@ -931,7 +1014,9 @@ fn squash_with(
   }
   let report = audit_with(snapshot, parents)
   if get(report, "valid") != Bool(true) {
-    raise InputError("cannot squash corrupted snapshot")
+    // The same reasons apply as for restore - a missing parent is a chain problem, a mismatch is
+    // damaged content - so both operations explain themselves the same way.
+    raise InputError(refusal_reason(report))
   }
   let (_, _, listed) = manifest(snapshot)
   let (links, _) = resolve_chain(snapshot, parents)

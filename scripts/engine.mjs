@@ -66,6 +66,19 @@ function cliPath() {
 // stringify once, check the size, and hand the text over here.
 export const REQUEST_LIMIT = 16 * 1024 * 1024;
 
+// The human-readable part of a failure, from either stream. A malformed or absent body is
+// reported as-is rather than parsed hopefully: the caller needs something to show, and a parse
+// failure inside the error path would replace a real message with a TypeError.
+function messageOf(stream) {
+  const text = (stream || '').trim();
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.error === 'string') return parsed.error;
+  } catch { /* not JSON: fall through to the raw text */ }
+  return text;
+}
+
 export function engineText(text) {
   const cli = cliPath();
   const result = spawnSync(process.execPath, [cli, '-'], {
@@ -73,7 +86,17 @@ export function engineText(text) {
     timeout: 120000,
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stdout || result.stderr);
+  if (result.status !== 0) {
+    // The CLI answers failures with the same envelope as successes - `{"error": "..."}` on stdout -
+    // so the message is the value of that field, not the envelope. Throwing `result.stdout` whole
+    // made every downstream handler wrap a JSON document in a sentence, and a user who hit a
+    // corrupted snapshot saw:
+    //
+    //   {"error":"{\"error\":\"cannot restore corrupted snapshot\"}\n"}
+    //
+    // Text that has to be unescaped in your head is not an error message.
+    throw new Error(messageOf(result.stdout) ?? messageOf(result.stderr) ?? 'the core failed');
+  }
   return JSON.parse(result.stdout);
 }
 

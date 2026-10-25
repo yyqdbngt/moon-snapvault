@@ -53,7 +53,10 @@ try {
   assert.deepEqual(diff.modified, ['copy.bin']);
 
   // Restoring a delta needs its chain, and refuses to run without one.
-  assert.throws(() => restore(two, path.join(base, 'no-chain')), /corrupted/);
+  // A missing link, not damage: the message has to say which, because the two call for
+  // different actions - pass the parent, or find the corrupt file.
+  assert.throws(() => restore(two, path.join(base, 'no-chain')),
+    /missing the parent snapshot/);
   assert.equal(fs.existsSync(path.join(base, 'no-chain')), false);
   const deltaTarget = path.join(base, 'delta-out');
   const deltaResult = restore(two, deltaTarget, [one]);
@@ -677,7 +680,112 @@ try {
   assert.throws(() => restore(collidingFile, collidingTarget), /Unicode normalization/);
   assert.equal(fs.existsSync(collidingTarget), false);
 
-  console.log('Snapshot integration: base and delta snapshots, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name and path rejection, case and normalization collision rejection, concurrent publication and restore, named host and source failures passed');
+  // A history, not a step. Every other case here performs one or two operations on a tree that
+  // was just built; a user runs the same handful of commands for months. This walks a five-step
+  // history - the tree changing, each snapshot linking to the last - then folds the chain, keeps
+  // going, and restores every point. Two things only this can catch: state that accumulates
+  // wrongly, and an old snapshot that stops restoring once the chain has been compacted.
+  {
+    const historyRoot = path.join(base, 'history');
+    const tree = path.join(historyRoot, 'src');
+    fs.mkdirSync(tree, {recursive: true});
+    const chain = [];
+    const expected = [];
+    // A recursive record of the tree, so a nested change cannot hide behind a flat listing.
+    const treeAt = (dir, prefix = '') => fs.readdirSync(path.join(dir, prefix), {withFileTypes: true})
+      .flatMap((entry) => {
+        const next = prefix === '' ? entry.name : prefix + '/' + entry.name;
+        return entry.isDirectory()
+          ? treeAt(dir, next)
+          : [next + '=' + fs.readFileSync(path.join(dir, next)).toString('base64')];
+      })
+      .sort();
+    for (let step = 1; step <= 5; step++) {
+      fs.writeFileSync(path.join(tree, 'doc.txt'), 'content revision ' + step);
+      fs.writeFileSync(path.join(tree, 'note-' + step + '.txt'), 'extra ' + step);
+      if (step > 2) fs.rmSync(path.join(tree, 'note-' + (step - 2) + '.txt'), {force: true});
+      const name = path.join(historyRoot, 's' + step + '.json');
+      // `previous` is the newest link and the rest follow it, which is the order the adapter
+      // expects: the first positional after the destination is the parent, the others extend it.
+      const newest = chain[chain.length - 1];
+      const older = chain.slice(0, -1).reverse();
+      backup(tree, name, newest, older);
+      chain.push(name);
+      expected.push({step, doc: 'content revision ' + step, files: treeAt(tree)});
+      // Each step after the first must store only the objects the chain lacks, or the "delta"
+      // is a full snapshot wearing a parent field.
+      if (step > 1) {
+        const written = JSON.parse(fs.readFileSync(name, 'utf8'));
+        assert.ok(Object.keys(written.objects).length <= 2,
+          `step ${step} stored ${Object.keys(written.objects).length} objects; a delta should `
+          + 'store only what changed');
+      }
+    }
+
+    // Every point in the history restores to the tree that existed then.
+    for (const point of expected) {
+      const target = path.join(historyRoot, 'restored-' + point.step);
+      const parents = chain.slice(0, point.step - 1).reverse();
+      restore(chain[point.step - 1], target, parents);
+      assert.equal(fs.readFileSync(path.join(target, 'doc.txt'), 'utf8'), point.doc,
+        `history step ${point.step} restored the wrong content`);
+      assert.deepEqual(treeAt(target), point.files,
+        `history step ${point.step} restored a different tree`);
+    }
+
+    // Fold the whole chain, then continue from the folded snapshot. This is the pattern a user
+    // falls into when the chain gets long, and it starts a new chain rather than extending one.
+    const compact = path.join(historyRoot, 'compact.json');
+    squash(chain[chain.length - 1], compact, chain.slice(0, -1).reverse());
+    const compacted = JSON.parse(fs.readFileSync(compact, 'utf8'));
+    assert.equal(compacted.parent, null, 'a folded snapshot must have no parent');
+    assert.equal(engine({operation: 'audit', snapshot: compacted}).valid, true,
+      'a folded snapshot must audit valid on its own');
+
+    fs.writeFileSync(path.join(tree, 'doc.txt'), 'content revision 6');
+    fs.writeFileSync(path.join(tree, 'note-6.txt'), 'extra 6');
+    const next = path.join(historyRoot, 's6.json');
+    backup(tree, next, compact);
+    const continued = JSON.parse(fs.readFileSync(next, 'utf8'));
+    assert.equal(continued.parent, compacted.checksum,
+      'a backup after folding links to the folded snapshot');
+    const afterFold = path.join(historyRoot, 'restored-6');
+    restore(next, afterFold, [compact]);
+    assert.equal(fs.readFileSync(path.join(afterFold, 'doc.txt'), 'utf8'), 'content revision 6',
+      'the snapshot taken after folding restores');
+
+    // And the old links still restore from their own chain: folding is an addition, not a
+    // replacement. Their parents are still on disk, which is what makes this true.
+    for (const point of expected.slice(1)) {
+      const target = path.join(historyRoot, 'again-' + point.step);
+      restore(chain[point.step - 1], target, chain.slice(0, point.step - 1).reverse());
+      assert.deepEqual(treeAt(target), point.files,
+        `history step ${point.step} stopped restoring after the chain was folded`);
+    }
+
+    // When the chain really is gone, the refusal has to say so. It used to report "cannot
+    // restore corrupted snapshot" for this, which sends a reader looking for a damaged file
+    // when the actual problem is a missing link - found by walking this history.
+    {
+      const moved = [];
+      for (const link of chain.slice(1, -1)) {
+        const aside = link + '.aside';
+        fs.renameSync(link, aside);
+        moved.push([link, aside]);
+      }
+      try {
+        const target = path.join(historyRoot, 'no-chain');
+        assert.throws(() => restore(chain[chain.length - 1], target, [compact]),
+          (error) => /missing the parent snapshot/.test(error.message),
+          'a missing parent should be reported as a missing parent, not as damage');
+        assert.equal(fs.existsSync(target), false, 'nothing is created when the chain is missing');
+      } finally {
+        for (const [link, aside] of moved) fs.renameSync(aside, link);
+      }
+    }
+  }
+
+  console.log('Snapshot integration: base and delta snapshots, five-step history, compaction and continuation, declared-objects deltas, piecewise restore and squash, three-link 8 MiB chains, chain restore, squash, selective restore, dedup, incremental diff, no overwrite, containment, corruption rejection, umask-independent modes, unicode round-trips, native-name round-trips, containment and alternate-stream rejection, over-long name and path rejection, case and normalization collision rejection, concurrent publication and restore, named host and source failures passed');
 } finally {
   // Remove the scratch tree, and do not let a cleanup problem masquerade as a test failure.
   // On Windows a permission the case provoked can survive into `rmSync` - that is exactly how

@@ -358,7 +358,7 @@
       }
     },
     "expected": {},
-    "error": "cannot restore corrupted snapshot"
+    "error": "damaged snapshot"
   },
   {
     "name": "create refuses a corrupt previous snapshot",
@@ -896,7 +896,7 @@
       }
     },
     "expected": {},
-    "error": "cannot restore corrupted snapshot"
+    "error": "the chain is missing the parent snapshot"
   },
   {
     "name": "delta retention counts inherited objects",
@@ -1243,7 +1243,7 @@
       }
     },
     "expected": {},
-    "error": "cannot squash corrupted snapshot"
+    "error": "the chain is missing the parent snapshot"
   },
   {
     "name": "restore selects one file",
