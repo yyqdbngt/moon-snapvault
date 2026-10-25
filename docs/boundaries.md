@@ -184,6 +184,32 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### Randomized histories, not one fixed script
+
+The five-step history in the integration suite is one path through the sequence. A user's path is
+not: they add and remove files in a different order, fold at a different point, and keep going.
+`scripts/history.py` walks many, reusing the oracle `scripts/fuzz.py` already has - an independent
+reconstruction of each tree from the snapshot JSON with `hashlib` and `base64` - so nothing is
+compared against a recorded answer.
+
+Each history is a random sequence of adds, modifies, removes and renames, with a fold at a random
+point. After every step three things are checked against the oracle: the tree the snapshot
+describes, that a delta stores no object its chain already holds, and - at the end, over the whole
+history - that every snapshot still restores, including the ones whose chain was folded away.
+
+The delta-size check is the one that needs a sequence. A snapshot that reports a parent and stores
+the whole tree restores perfectly and is no longer incremental; comparing object sets against what
+the chain holds is only meaningful once there is a chain.
+
+Verified as load-bearing on the fold: making it keep only the first payload is reported as "fold
+changed the tree it folded", in the history that reached a multi-file fold. Writing this also
+produced a correction on my side - the fold was first compared against the edited working tree
+rather than against the tip the fold actually folded, and reported a fold that had "changed" a file
+the snapshot never held. Two of three histories failed on that mistake, which is a reasonable sign
+the assertion was doing something.
+
+Four seeds, twenty histories, two hundred snapshots: the core and the oracle agree.
+
 ### A history, not a step
 
 Every case in the suite performs one or two operations on a tree that was just built. A user runs

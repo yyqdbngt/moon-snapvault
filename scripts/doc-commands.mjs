@@ -42,7 +42,7 @@ const COVERED = [
   /^SKIP_NATIVE=1 sh scripts\/verify\.sh/,
   /^node scripts\/(check|stats|interface|consumer-smoke|examples|durability|cli-contract|doc-commands|coverage|bench-smoke|compat|release-claims|defect-matrix|warnings|package-smoke|fields|attribution|layers|integration)\.mjs/,
   /^node _build\/js\/release\/build\/cmd\/main\/main\.js /,
-  /^python -B scripts\/(reference|followup_reference|delta_reference|fuzz|robustness|mutation_sweep|workflow|docs)\.py/,
+  /^python -B scripts\/(reference|followup_reference|delta_reference|fuzz|history|robustness|mutation_sweep|workflow|docs)\.py/,
 ];
 
 // The adapter's documented forms, with what each placeholder should become. The order

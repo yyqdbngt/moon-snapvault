@@ -92,6 +92,8 @@ python3 -B scripts/docs.py
 node scripts/doc-commands.mjs
 # Randomized differential test. FUZZ_ITERATIONS trades time for coverage; the
 # default is small enough for CI and still exercises every seeded path.
-python3 -B scripts/fuzz.py "${FUZZ_ITERATIONS:-6}"
+python3 -B scripts/fuzz.py
+# Operates in sequence: a randomized history, each answer predicted by the oracle above.
+python3 -B scripts/history.py 4 --steps 10 "${FUZZ_ITERATIONS:-6}"
 node scripts/integration.mjs
 echo "verify: ok"

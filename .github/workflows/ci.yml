@@ -64,7 +64,8 @@ jobs:
       - run: python3 -B scripts/workflow.py
       - run: python3 -B scripts/docs.py
       - run: node scripts/doc-commands.mjs
-      - run: python3 -B scripts/fuzz.py 8
+      - run: python3 -B scripts/fuzz.py
+      - run: python3 -B scripts/history.py 4 --steps 10 8
       - run: node scripts/integration.mjs
   # The path rules exist for case-insensitive, Unicode-normalising filesystems, and
   # nothing else in this workflow runs on one. A default macOS volume is both, so

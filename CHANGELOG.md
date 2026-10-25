@@ -62,6 +62,20 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### Randomized histories against the oracle
+
+- `scripts/history.py` drives the `fuzz.py` oracle through random sequences - adds, modifies,
+  removes, renames, and a fold at a random point - rather than one fixed five-step script. After
+  every step it checks the tree the snapshot describes against the oracle's reconstruction, that a
+  delta stores nothing its chain already holds, and over the whole history that every snapshot
+  still restores, including those whose chain was folded away.
+- The delta-size check needs a sequence: a snapshot that reports a parent while storing the whole
+  tree restores correctly and is no longer incremental, and object sets can only be compared
+  against what a chain holds once there is a chain.
+- Verified by making the fold keep only the first payload, which is reported in the history that
+  reaches a multi-file fold.
+- Four seeds, twenty histories, two hundred snapshots agree with the oracle.
+
 ### A five-step history in the integration suite, and two defects it found
 
 - Every existing case performs one or two operations on a freshly built tree. The suite now walks a
