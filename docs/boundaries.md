@@ -208,6 +208,19 @@ three symptoms that shipped last round - the format, the checksum, and the ident
 strongest evidence available that this check would have caught it. Corrupting the payload before it
 is written reports the affected files. Dropping the explicit `chmod` reports a mode mismatch.
 
+The comparisons run over a matrix, not over one snapshot. The first version only used what
+`backup` happens to write, which is format 2 - the case the `squash` bug appeared in, and not the
+only case. Format 1 is what 0.2.0 wrote and what a migrating user has on disk; format 3 is what a
+chain uses. Each is produced by the core, written to disk and offered to the adapter, which is how
+a real user meets a snapshot they did not write. Verified by truncating the decimal payload by one
+byte in the adapter's restore: three files are reported, all of them format 1, and the older
+version of this check would have seen nothing because it never ran that branch.
+
+Selective restore is compared too, because `--path` is the adapter's spelling of the core's
+`paths` and a selection that disagrees writes a different tree while each side looks correct alone.
+Dropping the selection in the adapter reports both the path sets and the counts - and the tree
+includes `docsx.txt` next to `docs/`, so a prefix match would be caught as well.
+
 That last one only worked after a correction. The tree had no file whose mode the umask would
 narrow, so removing the `chmod` changed nothing: `openSync` is given the recorded mode, and under a
 022 umask a 0644 file arrives correct anyway. A 0777 file had to be added before the comparison

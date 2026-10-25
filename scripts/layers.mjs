@@ -211,6 +211,135 @@ try {
       }
     }
   }
+  // --- the format matrix ---------------------------------------------------
+  // The comparisons above run on the snapshot `backup` happens to write, which is format 2. That
+  // is the case that caught the `squash` default; it is not the only case. Format 1 is what 0.2.0
+  // wrote and what a migrating user has on disk, and format 3 is what a chain uses, so a
+  // divergence that only appears on one of them would have gone unnoticed - the same "a passing
+  // check may be passing for want of a case" that the mode comparison hit.
+  //
+  // Each format is produced by the core, written to disk, and then offered to the adapter, which
+  // is how a real user meets a snapshot they did not write.
+  for (const format of [1, 2, 3]) {
+    const label = `format ${format}`;
+    const snapshot = engine({
+      format,
+      files: [
+        {path: 'a.txt', text: 'abc'},
+        {path: 'empty.bin', bytes: []},
+        {path: 'docs/x.md', text: 'two'},
+        {path: 'docs/deep/y.bin', bytes: [0, 7, 255]},
+      ],
+    }).snapshot;
+    const file = path.join(work, `matrix-${format}.json`);
+    fs.writeFileSync(file, JSON.stringify(snapshot));
+
+    // Restore through the adapter and compare with what the core says it would write.
+    const out = path.join(work, `matrix-${format}-out`);
+    if (cli(['restore', file, out])) {
+      const core = engine({operation: 'restore', snapshot});
+      const wrote = readTree(out);
+      const coreList = core.files.map((entry) => entry.path).sort();
+      const wroteList = wrote.map((entry) => entry.path).sort();
+      if (JSON.stringify(coreList) !== JSON.stringify(wroteList)) {
+        problems.push(`${label}: the core restores ${JSON.stringify(coreList)} and the adapter `
+          + JSON.stringify(wroteList));
+      }
+      for (const entry of core.files) {
+        const onDisk = wrote.find((candidate) => candidate.path === entry.path);
+        if (!onDisk) continue;
+        const expected = core.encoding === 'base64'
+          ? Buffer.from(entry.bytes, 'base64')
+          : Buffer.from(entry.bytes.map((value) => value & 0xff));
+        if (!expected.equals(onDisk.bytes)) {
+          problems.push(`${label}: the core and the adapter disagree on the bytes of `
+            + entry.path);
+        }
+      }
+      // And the reported encoding has to describe what was actually in the file, because that is
+      // what tells a caller how to read the payloads it was given.
+      const expectedEncoding = format === 1 ? 'decimal' : 'base64';
+      if (core.encoding !== expectedEncoding) {
+        problems.push(`${label}: the core reported encoding ${core.encoding}, expected `
+          + expectedEncoding);
+      }
+    }
+
+    // Squash without asking to convert: both layers must leave the same snapshot.
+    const folded = path.join(work, `matrix-${format}-folded.json`);
+    const foldedReply = cli(['squash', file, folded]);
+    if (foldedReply) {
+      const throughAdapter = JSON.parse(fs.readFileSync(folded, 'utf8'));
+      const throughCore = engine({operation: 'squash', snapshot});
+      if (throughAdapter.version !== throughCore.snapshot.version) {
+        problems.push(`${label}: squash kept format ${throughCore.snapshot.version} in the core `
+          + `and produced ${throughAdapter.version} through the adapter`);
+      }
+      if (throughAdapter.checksum !== throughCore.snapshot.checksum) {
+        problems.push(`${label}: squash produced checksum `
+          + `${throughAdapter.checksum.slice(0, 16)} through the adapter and `
+          + `${throughCore.snapshot.checksum.slice(0, 16)} from the core`);
+      }
+      // A self-contained snapshot does not change when folded, in either layer.
+      if (throughAdapter.checksum !== snapshot.checksum) {
+        problems.push(`${label}: squashing changed the checksum of a self-contained snapshot`);
+      }
+    }
+  }
+
+  // --- selective restore ---------------------------------------------------
+  // `--path` is the adapter's spelling of the core's `paths`, and the two have to select the same
+  // files. A selection that disagrees writes a different tree, and each side would look correct
+  // on its own.
+  {
+    const snapshot = engine({
+      files: [
+        {path: 'docs/a.md', text: 'x'},
+        {path: 'docs/deep/b.md', text: 'y'},
+        {path: 'docsx.txt', text: 'not in docs'},
+        {path: 'other/c.txt', text: 'z'},
+      ],
+    }).snapshot;
+    const file = path.join(work, 'selection.json');
+    fs.writeFileSync(file, JSON.stringify(snapshot));
+    for (const selected of [['docs'], ['docs', 'other']]) {
+      const out = path.join(work, 'selection-' + selected.join('-'));
+      // One flag per path: `--path a b` would leave `b` for the parent-snapshot slot.
+      const flags = selected.flatMap((one) => ['--path', one]);
+      const reply = cli(['restore', file, out, ...flags]);
+      if (!reply) continue;
+      const core = engine({operation: 'restore', snapshot, paths: selected});
+      const wrote = readTree(out).map((entry) => entry.path).sort();
+      const expected = core.files.map((entry) => entry.path).sort();
+      if (JSON.stringify(wrote) !== JSON.stringify(expected)) {
+        problems.push(`--path ${selected.join(',')}: the core selects `
+          + `${JSON.stringify(expected)} and the adapter wrote ${JSON.stringify(wrote)}`);
+      }
+      // `files` counts what was written and `total_files` what the snapshot holds; both layers
+      // have to report the same pair, or a caller cannot tell a subset from a whole.
+      if (reply.files !== core.selected || reply.total_files !== core.total_files) {
+        problems.push(`--path ${selected.join(',')}: the adapter reports `
+          + `${reply.files}/${reply.total_files} and the core ${core.selected}/${core.total_files}`);
+      }
+    }
+    // A selection that names nothing is refused by both, rather than writing an empty tree.
+    const nothing = cli(['restore', file, path.join(work, 'selection-none'), '--path', 'absent'],
+      {expect: 1});
+    const coreNothing = (() => {
+      try {
+        engine({operation: 'restore', snapshot, paths: ['absent']});
+        return null;
+      } catch (error) {
+        return String(error.message);
+      }
+    })();
+    if (nothing && coreNothing === null) {
+      problems.push('the adapter refused a selection that names nothing and the core accepted it');
+    }
+    if (!nothing && coreNothing !== null) {
+      problems.push('the core refused a selection that names nothing and the adapter accepted it');
+    }
+  }
 } finally {
   fs.rmSync(work, {recursive: true, force: true});
 }

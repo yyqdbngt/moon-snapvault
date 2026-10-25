@@ -124,6 +124,29 @@ try {
       }
     }
 
+    // The flag repeats rather than taking several values, because the arguments after it are
+    // where parent snapshots go. `--path a b` reads naturally from `[--path P ...]` in the usage
+    // line and used to bind `b` to the parent slot, failing with "Snapshot file does not exist".
+    {
+      const multi = check('adapter: restore with two --path flags',
+        invoke(adapter, ['restore', treeSnapshot, path.join(work, 'multi'),
+          '--path', 'docs', '--path', 'a.txt']), 0);
+      if (multi) {
+        const wrote = [];
+        const walk = (relative) => {
+          for (const entry of fs.readdirSync(path.join(work, 'multi', relative), {withFileTypes: true})) {
+            const next = relative === '' ? entry.name : relative + '/' + entry.name;
+            if (entry.isDirectory()) walk(next); else wrote.push(next);
+          }
+        };
+        walk('');
+        if (wrote.sort().join() !== 'a.txt,docs/x.md') {
+          problems.push('two --path flags wrote ' + JSON.stringify(wrote.sort())
+            + ', wanted a.txt and docs/x.md');
+        }
+      }
+    }
+
     const folded = check('adapter: squash --format',
       invoke(adapter, ['squash', treeSnapshot, path.join(work, 'flat.json'), '--format', '2']), 0);
     if (folded && folded.format !== 2) {

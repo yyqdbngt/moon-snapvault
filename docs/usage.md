@@ -64,6 +64,10 @@ misleading comparison.
 `locate` reports `missing_parent` and `unresolved` instead of raising; `extract`
 raises on a digest it does not hold or one whose payload does not match.
 
+On the command line the flag repeats: `restore SNAPSHOT DEST --path docs --path src`.
+It does not take several values after one flag, because the arguments after it are where
+parent snapshots go.
+
 ## Retention plan fields
 
 | Field | Meaning |

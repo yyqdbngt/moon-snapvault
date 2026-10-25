@@ -707,7 +707,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const usage = [
       'Usage:',
       '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]]',
-      '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P ...]',
+      // `[--path P ...]` read as "one flag, several values", which is how the layers check
+      // first used it - and the extra value was then taken as a parent snapshot, failing
+      // with "Snapshot file does not exist: other". The flag repeats instead.
+      '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P]...',
       '  filesystem.mjs squash  SNAPSHOT DEST [PARENT...] [--format N]',
       '      --format is optional; without it the snapshot keeps its format',
     ].join('\n');

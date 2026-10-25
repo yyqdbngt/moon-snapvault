@@ -62,6 +62,20 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### The two-layer comparison covers every format and selective restore
+
+- It ran on whatever `backup` writes, which is format 2. Format 1 is what 0.2.0 wrote and what a
+  migrating user has on disk, and format 3 is what a chain uses, so a divergence on either would
+  have gone unnoticed. Each format is now produced by the core, written to disk and offered to the
+  adapter - restore, bytes and squash compared. Verified by truncating the decimal payload by one
+  byte in the adapter: three format 1 files are reported and nothing else.
+- Selective restore is compared as well: `--path` against the core's `paths`, including the path
+  sets, the `files`/`total_files` counts, and a selection that names nothing being refused by both.
+- The usage line said `[--path P ...]`, which reads as "one flag, several values" - that is how
+  this check first used it, and the extra value was then taken for a parent snapshot, failing with
+  "Snapshot file does not exist: other". The flag repeats instead: `[--path P]...`, and
+  `cli-contract.mjs` now exercises two of them.
+
 ### The adapter and the core are now compared with each other
 
 - `scripts/layers.mjs` runs `backup`, `restore` and `squash` through both layers and asserts they
