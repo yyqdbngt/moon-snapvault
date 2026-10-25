@@ -65,6 +65,9 @@ node scripts/warnings.mjs
 node scripts/package-smoke.mjs
 # Every field an operation returns has to be named in the documentation.
 node scripts/fields.mjs
+# The numbers each operation reports have to add up; a reader who sees two that disagree has no
+# way to tell which is wrong.
+node scripts/invariants.mjs
 # License, dependency and shipped-notice claims: they only fail after a publish.
 node scripts/attribution.mjs
 # The adapter and the core must give the same answer for the same input; each layer is tested

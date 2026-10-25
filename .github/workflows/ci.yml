@@ -46,6 +46,7 @@ jobs:
       - run: node scripts/consumer-smoke.mjs
       - run: node scripts/package-smoke.mjs
       - run: node scripts/fields.mjs
+      - run: node scripts/invariants.mjs
       - run: node scripts/attribution.mjs
       - run: node scripts/layers.mjs
       - run: node scripts/cli-contract.mjs
@@ -94,6 +95,7 @@ jobs:
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
       - run: node scripts/fields.mjs
+      - run: node scripts/invariants.mjs
       - run: node scripts/attribution.mjs
       - run: node scripts/layers.mjs
       - run: node scripts/doc-commands.mjs
@@ -129,6 +131,7 @@ jobs:
       - run: node scripts/check.mjs
       - run: node scripts/stats.mjs
       - run: node scripts/fields.mjs
+      - run: node scripts/invariants.mjs
       - run: node scripts/attribution.mjs
       - run: node scripts/layers.mjs
       - run: node scripts/doc-commands.mjs

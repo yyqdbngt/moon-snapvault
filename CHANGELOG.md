@@ -62,6 +62,21 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### The reported numbers are now checked against each other
+
+- `scripts/invariants.mjs` asserts 108 arithmetic relations between reported fields: `create`'s
+  `total = unique + deduplicated` and `unique = new + reused`, `audit`'s
+  `referenced + unreferenced = total` and `checked = total`, `restore`'s `selected = files.length`
+  and `total_files` matching the manifest, `squash`'s counts matching the snapshot it produced,
+  and the retention buckets partitioning the objects with byte totals that match their contents.
+- Two of them are promises rather than arithmetic: `checked = total` is the claim that a full audit
+  is full, and no bucket may be non-empty without the action that frees it - which is the relation
+  that found last round's defect.
+- Verified both ways: reverting the retention classification is reported, and so is an `audit` that
+  reports one object fewer than it examined.
+- Writing it corrected one assertion of mine: `squash` was asserted to produce `parent: null` for
+  every format, but formats 1 and 2 omit the key while format 3 carries it as `null`.
+
 ### `collectible_bytes` promised bytes no deletion could reclaim
 
 - An unreferenced object stored inside a snapshot the plan keeps was counted as collectible. The

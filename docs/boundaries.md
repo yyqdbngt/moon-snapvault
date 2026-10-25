@@ -184,6 +184,34 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### The reported numbers have to add up
+
+`scripts/invariants.mjs` asserts 108 arithmetic relations between fields the operations report -
+statements a reader could check with a calculator, and statements the documentation makes implicitly
+by reporting both numbers. They are worth a check of their own because the failure is not a crash:
+the tool reports two numbers, they disagree, and the reader has no way to know which is wrong.
+
+| Operation | Relation |
+|---|---|
+| `create` | `total = unique + deduplicated`, `unique = new + reused` |
+| `audit` | `referenced + unreferenced = total`, `checked = total` |
+| `restore` | `selected = files.length`, `total_files` = the manifest's file count |
+| `squash` | the reported counts are those of the snapshot it produced |
+| `retention` | the three object buckets partition the stored objects, each bucket's byte total is the size of what it holds, and no bucket is non-empty without the action that frees it |
+
+The retention relations were the ones that found a defect last round, and every other row was
+checked while writing them and holds. Two of them are worth naming because they are promises rather
+than arithmetic: `checked = total` is the claim that a full audit is full, and "no bucket is
+non-empty without the action that frees it" is the claim that the plan's advice can be followed.
+
+Verified as load-bearing both ways: reverting the retention classification is reported as
+`collectible_bytes: 2` with an empty `drop_snapshots`, and teaching `audit` to report one object
+fewer than it examined is reported against both of its cases.
+
+Writing it corrected one assertion of mine. `squash` was asserted to produce `parent: null` for
+every format, but the canonical spelling depends on the format: 1 and 2 omit the key, 3 carries it
+as `null`. That is a property of the format, not a defect, and the check now says so per format.
+
 ### A retention plan promises only what a deletion can deliver
 
 `collectible` used to mean "no surviving file references it". That is not the same as "deleting the
