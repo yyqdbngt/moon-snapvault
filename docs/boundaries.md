@@ -184,6 +184,42 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### Every documented example names what verifies it
+
+`docs/usage.md` has nine sections that show a case rather than a field table - an unsafe path, a
+deduplication, a case collision. Each is a claim about behaviour, and a claim with no test behind
+it is how the `--path` flag came to be documented and unusable.
+
+Matching headings to test names does not work. "unsafe path CON.txt" is verified in
+`engine_wbtest.mbt` and `tests/cases.json`; "case collision" in `scripts/integration.mjs` and
+`engine_wbtest.mbt`. A name match reported three gaps that were not gaps, which is the failure
+mode worth avoiding here: a false gap costs someone an afternoon.
+
+So `docs.py` carries an explicit map from section to witness, and both directions are checked - a
+section shown without an entry fails, and an entry naming a section that no longer exists fails.
+Verified by adding an "empty filename" section, which is reported, and by deleting an entry,
+which is reported.
+
+### Every output field is named in the documentation
+
+`scripts/fields.mjs` runs eleven operations with fixed inputs, collects every field they return -
+including one level of nesting, so `files[].mode` and `issues[].reason` count - and fails if the
+documentation never names one.
+
+Four were missing: `live_bytes`, `collectible_bytes`, `plan_only` and `scope`, all in the
+retention plan. They had been in the output for several releases and appeared only inside an
+example JSON in the project proposal, which is not where a caller looks. A field a caller
+receives and the documentation never names is one they have to read the source to understand.
+
+Two details the check needed. `extract` returns `objects` keyed by digest, and taking those keys
+as field names reported a 64-character hash as undocumented. And the probe requests have to match
+the real API: the first version guessed `before`/`after` for `diff` and `snapshots` for `locate`,
+where the fixtures show `old`/`new` and a single `snapshot`. Reading the fixtures rather than the
+interface would have saved that, which is worth remembering about the order to consult them in.
+
+It checks presence, not placement: a field named anywhere in the documentation counts, because
+whether prose is adequate is not something a script can judge. That makes it a floor.
+
 ### Files are read as UTF-8, not as whatever the platform defaults to
 
 `docs.py` and `workflow.py` called `read_text()` without an encoding, which uses the platform

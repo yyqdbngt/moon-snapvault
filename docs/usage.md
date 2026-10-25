@@ -74,6 +74,10 @@ raises on a digest it does not hold or one whose payload does not match.
 | `drop_snapshots` | identities that are neither kept nor required |
 | `reachable_objects` | objects referenced by any surviving snapshot |
 | `collectible_objects` | objects no surviving snapshot references |
+| `live_bytes` | bytes held by the reachable objects, counted once each |
+| `collectible_bytes` | bytes held by the collectible objects, counted once each |
+| `plan_only` | always `true`: the plan describes deletions and performs none |
+| `scope` | what the byte counts cover, as a sentence, so a reader need not infer it |
 
 Keeping a delta keeps its parent: deleting the parent leaves the delta's manifest
 pointing at a checksum nothing provides, and `restore` then fails even though

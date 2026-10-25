@@ -62,6 +62,27 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### Documented examples now name what verifies them
+
+- `docs/usage.md` has nine sections showing a case rather than a field table. Nothing connected
+  them to a test, which is how `--path` came to be documented and unusable.
+- `docs.py` now maps each section to the files that verify it, and checks both directions: a
+  section with no entry fails, and an entry naming a removed section fails.
+- The map is explicit rather than derived, because matching headings to test names reports false
+  gaps: "unsafe path CON.txt" is verified in `engine_wbtest.mbt`, not in a fixture of that name.
+
+### Four retention fields were never documented
+
+- `live_bytes`, `collectible_bytes`, `plan_only` and `scope` had been in the retention plan's
+  output for several releases and were named only inside an example JSON in the project proposal,
+  which is not where a caller looks. They are now in the retention field table in
+  `docs/usage.md`, with what each one counts.
+- `scripts/fields.mjs` makes it a rule: eleven operations, every returned field including one
+  level of nesting, and the documentation has to name each. 52 fields across 11 operations, and
+  a field added without a doc line now fails the ladder.
+- It checks presence rather than placement, because whether prose is adequate is not something a
+  script can judge. That makes it a floor rather than a guarantee.
+
 ### Python scripts read files in the platform's default encoding
 
 - `docs.py` and `workflow.py` called `read_text()` without an encoding, which is UTF-8 on Linux

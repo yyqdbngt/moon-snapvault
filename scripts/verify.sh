@@ -63,6 +63,8 @@ node scripts/warnings.mjs
 # The archive is what a consumer installs; this is the only step that uses the shipped CLI,
 # the shipped tests and the shipped ladder rather than the checkout.
 node scripts/package-smoke.mjs
+# Every field an operation returns has to be named in the documentation.
+node scripts/fields.mjs
 node scripts/examples.mjs
 # Backup and restore must sync before claiming success, and the opt-out must say so.
 node scripts/durability.mjs
