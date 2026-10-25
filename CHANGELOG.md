@@ -62,6 +62,17 @@ resolves the published 0.2.0 until a release is published.
   and fails on any warning. It counts rather than matching text, because warning text changes
   between compiler releases and a check pinned to it would break on upgrade instead of on defect.
 
+### Documentation-reading scripts are run on every platform
+
+- `fields.mjs` and `doc-commands.mjs` are now in the `macos` and `windows` jobs, alongside
+  `package-smoke.mjs` which already ran there. Reading UTF-8 documentation is exactly where the
+  cp1252 defect hid, and running the readers on every platform is what finds that class.
+- `workflow.py` enforces it: a script that reads markdown must appear in both platform jobs.
+- The matcher was narrowed twice because it reported false problems. Substring matching on `docs/`
+  flagged `mutation_sweep.py` and `robustness.py`, whose test snapshots contain a path `docs/b.md`
+  - tests of the documentation rather than readers of it. Matching only named `.md` files missed
+  `doc-commands.mjs`, which lists a directory and filters on the suffix.
+
 ### Documented examples now name what verifies them
 
 - `docs/usage.md` has nine sections showing a case rather than a field table. Nothing connected

@@ -191,6 +191,32 @@ for entry in scripts_dir.iterdir():
 platform_sensitive -= HOST_LIBRARIES
 platform_sensitive -= set(PLATFORM_EXEMPT)
 
+# The same reasoning applies to a different class: a script that reads the documentation. Those
+# files are UTF-8 and hold characters cp1252 cannot decode, which is how docs.py came to fail on
+# Windows and take verify.sh with it. Reading them on every platform is what notices.
+#
+# Two of them already run inside package-smoke.mjs on all three platforms, so they are listed
+# rather than required separately.
+READS_DOCS_IN_PACKAGE_SMOKE = {'docs.py', 'workflow.py'}
+reads_docs = set()
+for entry in scripts_dir.iterdir():
+    if not entry.is_file() or entry.name in READS_DOCS_IN_PACKAGE_SMOKE:
+        continue
+    if entry.suffix not in {'.mjs', '.py'}:
+        continue
+    text = entry.read_text(encoding='utf-8', errors='replace')
+    # The file has to *read* a markdown file, not merely mention one. A snapshot in a test can
+    # hold a path like `docs/b.md`, and three scripts do, so a plain substring match reported
+    # tests of the documentation as readers of it.
+    reads_markdown = re.search(
+        r'read_text\([^)]*\.md'           # Python: a named .md file
+        r'|readFileSync\([^)]*\.md'       # JS: a named .md file
+        r"|endsWith\(\s*['\"]\.md"        # JS: filtering a directory by suffix
+        r"|glob\(\s*['\"]\*\*\.md",       # either: a glob
+        text) is not None
+    if reads_markdown:
+        reads_docs.add(entry.name)
+
 for job_name in ['macos', 'windows']:
     job = jobs.get(job_name)
     if job is None:
@@ -200,6 +226,11 @@ for job_name in ['macos', 'windows']:
         if f'scripts/{name}' not in rendered:
             problems.append(f'{job_name}: does not run scripts/{name}, which reads the platform '
                             'name, so its branch for this platform is never executed')
+    for name in sorted(reads_docs):
+        if f'scripts/{name}' not in rendered:
+            problems.append(f'{job_name}: does not run scripts/{name}, which reads the '
+                            'documentation, so a decoding difference on this platform would not '
+                            'be noticed')
 
 if problems:
     print(f'Workflow: {len(problems)} problem(s) in ci.yml')
@@ -209,4 +240,5 @@ if problems:
 
 print(f'Workflow: ci.yml parses, {len(jobs)} jobs, '
       f'{len(verify_steps)} host checks agree with verify.sh, no step can pass silently, '
-      f'{len(platform_sensitive)} platform-sensitive scripts run on every platform')
+      f'{len(platform_sensitive)} platform-sensitive and {len(reads_docs)} '
+      f'documentation-reading scripts run on every platform')

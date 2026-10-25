@@ -184,6 +184,20 @@ machine within noise. And the figures in `README.md` are copied by hand from a m
 the script can catch a drift of a factor but not a stale sentence - updating the prose is
 still a manual step, noted in the script's own output.
 
+### Documentation-reading scripts run on every platform
+
+The encoding defect fixed above was found by running a documentation-reading script on Windows.
+`workflow.py` now requires any script that reads markdown to appear in both platform jobs, for the
+same reason the platform-branch rule exists: the only way a decoding difference is noticed is by
+decoding the file there. Three scripts qualify - `fields.mjs`, `doc-commands.mjs` and
+`package-smoke.mjs` - and all three run on macOS and Windows.
+
+The matcher had to be narrowed twice, both times because it reported the wrong thing. Matching
+`docs/` or `README.md` as substrings flagged `mutation_sweep.py` and `robustness.py`, which hold a
+snapshot whose paths happen to be `docs/b.md` - tests of the documentation, not readers of it. And
+matching only named `.md` files missed `doc-commands.mjs`, which finds them by listing a directory
+and filtering on the suffix. A rule that reports false problems gets turned off.
+
 ### Every documented example names what verifies it
 
 `docs/usage.md` has nine sections that show a case rather than a field table - an unsafe path, a
