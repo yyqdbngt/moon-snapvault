@@ -103,6 +103,28 @@ const ADAPTER_FORMS = [
     ],
   },
   {
+    // The authentication forms: backup writes the block, restore verifies it.
+    pattern: /^node scripts\/filesystem\.mjs backup\s+SOURCE_DIR\s+NEW_SNAPSHOT\.json\s+--key\s+KEY$/,
+    steps: [['backup', '$src', '$dir/NEW_SNAPSHOT.json', '--key', 'hunter2']],
+  },
+  {
+    pattern: /^node scripts\/filesystem\.mjs restore\s+SNAPSHOT\.json\s+NEW_DIRECTORY\s+--key\s+KEY$/,
+    steps: [
+      ['backup', '$src', '$dir/SNAPSHOT.json', '--key', 'hunter2'],
+      ['restore', '$dir/SNAPSHOT.json', '$dir/NEW_DIRECTORY', '--key', 'hunter2'],
+    ],
+  },
+  {
+    // The bracketed spellings document the argument shape rather than one runnable
+    // invocation; `--list` reports the exemption so it is visible rather than implied.
+    pattern: /^node scripts\/filesystem\.mjs backup\s+SOURCE_DIR\s+NEW_SNAPSHOT\.json\s+\[PREVIOUS\.json\]\s+\[--key KEY\]$/,
+    shapeOnly: true,
+  },
+  {
+    pattern: /^node scripts\/filesystem\.mjs restore\s+SNAPSHOT\.json\s+NEW_DIRECTORY\s+\[--key KEY\]$/,
+    shapeOnly: true,
+  },
+  {
     // These document the argument shape, not a runnable invocation; `--list` reports them
     // so the exemption is visible rather than implied.
     pattern: /^node scripts\/filesystem\.mjs (backup|restore|squash)\s+(SOURCE|SNAPSHOT|tip\.json)\s+(SNAPSHOT|DEST)\s*\[/,

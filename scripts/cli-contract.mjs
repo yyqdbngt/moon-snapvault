@@ -95,6 +95,27 @@ try {
   check('adapter: destination that already exists', invoke(adapter,
     ['restore', snapshot, source]), 1);
 
+  // --- authentication through the adapter ---------------------------------
+  // The adapter threads --key into the core's create/audit/restore requests; the
+  // security semantics are the core's, so what is asserted here is the plumbing:
+  // a keyed backup restores with the same key and is refused with another.
+  {
+    const keyed = path.join(work, 'keyed.json');
+    const tree = path.join(work, 'ktree');
+    fs.mkdirSync(tree, {recursive: true});
+    fs.writeFileSync(path.join(tree, 'a.txt'), 'hello');
+    check('adapter: backup --key', invoke(adapter,
+      ['backup', tree, keyed, '--key', 'hunter2']), 0);
+    check('adapter: restore --key wrong', invoke(adapter,
+      ['restore', keyed, path.join(work, 'wrong-out'), '--key', 'wrong']), 1);
+    check('adapter: restore --key', invoke(adapter,
+      ['restore', keyed, path.join(work, 'keyed-out'), '--key', 'hunter2']), 0);
+    check('adapter: --key without a value', invoke(adapter,
+      ['backup', tree, path.join(work, 'k2.json'), '--key']), 2);
+    check('adapter: --key twice', invoke(adapter,
+      ['backup', tree, path.join(work, 'k3.json'), '--key', 'a', '--key', 'b']), 2);
+  }
+
   // --- the flags the docs show -------------------------------------------
   // `--path` and `--format` were unreachable: the parser only scanned arguments after
   // the fourth, so both flags bound to the parent-snapshot slot and the documented

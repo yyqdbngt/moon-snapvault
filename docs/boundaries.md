@@ -716,8 +716,8 @@ command, and runs the ones nothing else runs. An unclassified command is a failu
 a new line in a README would otherwise be checked by nobody - which is exactly how the
 `--path` bug got in.
 
-Current split: 7 documented invocations executed with placeholders substituted, 41 covered
-by the verify ladder, 2 argument shapes, and 35 lines that are results rather than
+Current split: 7 documented invocations executed with placeholders substituted, 55 covered
+by the verify ladder, 4 argument shapes, and 37 lines that are results rather than
 commands. The exemption list is in the script with a stated reason per entry; a line
 without one fails.
 

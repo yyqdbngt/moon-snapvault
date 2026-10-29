@@ -194,7 +194,7 @@ function verifyLink(link, budget = 8 * 1024 * 1024) {
 
 // `linkFiles` are snapshot paths; each is read, verified and released in turn, so
 // building a delta needs room for one link rather than for the whole chain.
-export function deltaFromDigests(files, linkFiles, sourceBytes = 0) {
+export function deltaFromDigests(files, linkFiles, sourceBytes = 0, key = undefined) {
   const known = new Set();
   for (const file of linkFiles) {
     const link = readSnapshot(file);
@@ -211,6 +211,7 @@ export function deltaFromDigests(files, linkFiles, sourceBytes = 0) {
     // digest needs no payload either, so every link travels as a manifest.
     parents: linkFiles.slice(1).map((file) => manifestOnly(readSnapshot(file))),
     known_objects: [...known],
+    ...(key ? {key} : {}),
   });
   return engineText(checkRequestSize(text, {
     source: sourceBytes,
@@ -222,7 +223,7 @@ export function deltaFromDigests(files, linkFiles, sourceBytes = 0) {
 // `chain` lists the snapshots this one builds on, oldest or newest first; the
 // engine matches them by checksum. Passing `previous` makes the new snapshot a
 // format 3 delta that stores only objects the chain does not already hold.
-export function backup(source, destination, previous, chain = []) {
+export function backup(source, destination, previous, chain = [], key = undefined) {
   const base = fs.realpathSync(source);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
@@ -288,11 +289,12 @@ export function backup(source, destination, previous, chain = []) {
       format: previous ? 3 : 2,
       files,
       ...(previous ? {previous: parentSnapshot, parents: readChain(chain)} : {}),
+      ...(key ? {key} : {}),
     }));
   } else {
     // One link is read, verified and released at a time, so a chain of any length
     // costs the largest link rather than the sum of them.
-    result = deltaFromDigests(files, linkPaths, sourceBytes);
+    result = deltaFromDigests(files, linkPaths, sourceBytes, key);
   }
   // A hard link is the publication step: it fails if the name exists, so two processes
   // racing to the same destination produce one snapshot and one clear failure rather
@@ -604,9 +606,10 @@ export function resolveInPieces(snapshot, parents, paths = []) {
 }
 
 // The whole chain is verified before the destination exists, on both paths.
-function resolveRestore(snapshot, parents, paths) {
+function resolveRestore(snapshot, parents, paths, key = undefined) {
   const request = {
     operation: 'restore', snapshot, parents, paths: paths.length ? paths : undefined,
+    ...(key ? {key} : {}),
   };
   const text = JSON.stringify(request);
   if (text.length <= REQUEST_LIMIT) {
@@ -615,14 +618,20 @@ function resolveRestore(snapshot, parents, paths) {
       chain: parents.reduce((sum, item) => sum + JSON.stringify(item).length, 0),
     }));
   }
+  // The piecewise path never runs the core's audit, so a key would silently
+  // skip authentication. Refusing names the workaround instead.
+  if (key) {
+    throw new Error('--key is not supported for a chain too large for one request; '
+      + 'fold the chain first (squash) or restore without --key');
+  }
   return resolveInPieces(snapshot, parents, paths);
 }
 
-export function restore(snapshotFile, destination, chain = [], paths = []) {
+export function restore(snapshotFile, destination, chain = [], paths = [], key = undefined) {
   // Verify the whole chain before creating the destination.
   const snapshot = readSnapshot(snapshotFile);
   const parents = readChain(chain);
-  const verified = resolveRestore(snapshot, parents, paths);
+  const verified = resolveRestore(snapshot, parents, paths, key);
   portablePaths(verified.files);
   const parent = fs.realpathSync(path.dirname(path.resolve(destination)));
   const output = path.join(parent, path.basename(destination));
@@ -706,13 +715,14 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     // the parent-snapshot slot and both documented flags were unreachable.
     const usage = [
       'Usage:',
-      '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]]',
+      '  filesystem.mjs backup  SOURCE SNAPSHOT [PREVIOUS [PARENT...]] [--key K]',
       // `[--path P ...]` read as "one flag, several values", which is how the layers check
       // first used it - and the extra value was then taken as a parent snapshot, failing
       // with "Snapshot file does not exist: other". The flag repeats instead.
-      '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P]...',
+      '  filesystem.mjs restore SNAPSHOT DEST [PARENT...] [--path P]... [--key K]',
       '  filesystem.mjs squash  SNAPSHOT DEST [PARENT...] [--format N]',
       '      --format is optional; without it the snapshot keeps its format',
+      '      --key authenticates the snapshot (HMAC-SHA256) on backup and on restore',
     ].join('\n');
     // Argument problems are usage errors and exit 2; everything else is exit 1. Marking
     // them is more reliable than matching the message text, which is how `--format 9`
@@ -726,6 +736,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const paths = [];
     // Left undefined unless `--format` is given, so the core keeps the snapshot's format.
     let format = undefined;
+    let key = undefined;
     const positional = [];
     for (let i = 0; i < argv.length; i++) {
       if (argv[i] === '--path') {
@@ -739,6 +750,11 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           throw usageError('--format takes 1, 2 or 3, not ' + JSON.stringify(value));
         }
         format = Number(value);
+      } else if (argv[i] === '--key') {
+        const value = argv[++i];
+        if (value === undefined) throw usageError(usage + '\n--key needs a value');
+        if (key !== undefined) throw usageError('--key was given twice');
+        key = value;
       } else if (argv[i].startsWith('--')) {
         // A flag this tool does not know is a mistake worth naming; silently treating it
         // as a path would send the caller looking for a snapshot that was never meant.
@@ -750,10 +766,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const [operation, source, destination, previous, ...chain] = positional;
     if (!source || !destination) throw usageError(usage);
     if (operation === 'backup') {
-      console.log(JSON.stringify(backup(source, destination, previous, chain)));
+      console.log(JSON.stringify(backup(source, destination, previous, chain, key)));
     } else if (operation === 'restore') {
       // For restore the fourth argument starts the chain, not a previous file.
-      console.log(JSON.stringify(restore(source, destination, [previous, ...chain], paths)));
+      console.log(JSON.stringify(restore(source, destination, [previous, ...chain], paths, key)));
     } else if (operation === 'squash') {
       console.log(JSON.stringify(squash(source, destination, [previous, ...chain], format)));
     } else {

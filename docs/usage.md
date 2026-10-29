@@ -82,6 +82,11 @@ that no one without the key can forge:
 | auth/hmac | HMAC-SHA256 (RFC 2104) over exactly the bytes the checksum covers |
 | authenticated | audit report: `true` verified with the key, `false` a mismatch, `null` nothing to verify or no key supplied |
 
+```sh
+node scripts/filesystem.mjs backup SOURCE_DIR NEW_SNAPSHOT.json --key KEY
+node scripts/filesystem.mjs restore SNAPSHOT.json NEW_DIRECTORY --key KEY
+```
+
 `audit` and `restore` accept the same `key`. A mismatch is an issue
 (`authentication failed`), makes `audit` return `valid: false`, and makes
 `restore` refuse before writing anything. Every link of a chain that carries a
@@ -399,10 +404,12 @@ before that separation and wrong after it.
 ## Host adapter
 
 ```sh
-node scripts/filesystem.mjs backup SOURCE_DIR NEW_SNAPSHOT.json [PREVIOUS.json]
-node scripts/filesystem.mjs restore SNAPSHOT.json NEW_DIRECTORY
+node scripts/filesystem.mjs backup SOURCE_DIR NEW_SNAPSHOT.json [PREVIOUS.json] [--key KEY]
+node scripts/filesystem.mjs restore SNAPSHOT.json NEW_DIRECTORY [--key KEY]
 ```
 
 `backup` sends file content as `content_base64`, refuses a destination inside the source, refuses to replace an existing snapshot, and prints a warning when the tree contains names that collide after Unicode normalization or case folding. The default source cap is 8 MiB of bytes per backup; `SNAPVAULT_ADAPTER_LIMIT_BYTES` overrides it. `restore` verifies every object first, rejects such collisions before creating the destination, writes with `flag: 'wx'`, and applies the recorded permission bits with `chmod`.
+
+`--key` authenticates: `backup` writes the HMAC block the core's `create` produces, and `restore` verifies it before creating the destination - a wrong key is a refusal, not a restore. A chain too large for one request is resolved piecewise, which cannot authenticate, so `restore --key` refuses that case and names the workaround (fold the chain first) rather than skipping the check.
 
 Read the current boundaries before using this adapter, and run `sh scripts/verify.sh` to reproduce the full check ladder.

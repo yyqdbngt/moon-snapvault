@@ -15,6 +15,9 @@ resolves the published 0.2.0 until a release is published.
   `true` verified, `false` a mismatch (an issue, `valid: false`, and restore
   refuses), `null` when the snapshot carries no block or no key was supplied.
   Every chain link carrying a block is verified; one failing link fails the chain.
+- The adapter threads `--key` through `backup` and `restore`, so authentication
+  works end to end from the command line; a chain that must be resolved piecewise
+  refuses `--key` with the workaround named, because that path cannot authenticate.
 - HMAC-SHA256 (RFC 2104) is implemented in `hmac.mbt` over the module's own
   SHA-256, with the raw-digest path factored out as `digest_raw`; the four
   RFC 4231 vectors are white-box tests, and they caught two real defects in the
