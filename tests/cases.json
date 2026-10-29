@@ -3129,5 +3129,157 @@
       "checksum": "00ec7c4e1840003c752a6f234882320de66a05c59a5326c2cc9131605e267b9f"
     },
     "error": false
+  },
+  {
+    "name": "list describes a snapshot",
+    "request": {
+      "operation": "list",
+      "snapshot": {
+        "version": 2,
+        "parent": null,
+        "files": [
+          {
+            "path": "notes.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "a7ebc4f421e2468403ac10c1e8379b522e50a8d524322617a4d439328b2bcf70"
+      }
+    },
+    "expected": {
+      "format": 2,
+      "parent": null,
+      "selected": 1,
+      "total_files": 1,
+      "total_bytes": 3,
+      "files/0/path": "notes.txt",
+      "files/0/digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed"
+    },
+    "error": false
+  },
+  {
+    "name": "list selects whole components",
+    "request": {
+      "operation": "list",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "b.bin",
+            "digest": "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a",
+            "size": 4,
+            "mode": 493
+          },
+          {
+            "path": "docs/a.md",
+            "digest": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            "size": 5,
+            "mode": 420
+          },
+          {
+            "path": "docsx.txt",
+            "digest": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "size": 1,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824": "aGVsbG8=",
+          "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881": "eA==",
+          "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a": "AQIDBA=="
+        },
+        "checksum": "3ff74fdacd1db1b90ef3a9fbcd7b835dace6903ffe58729d7f82a3b08b1c35a4"
+      },
+      "paths": [
+        "docs"
+      ]
+    },
+    "expected": {
+      "selected": 1,
+      "total_files": 3,
+      "total_bytes": 5,
+      "files/0/path": "docs/a.md"
+    },
+    "error": false
+  },
+  {
+    "name": "list refuses a path matching nothing",
+    "request": {
+      "operation": "list",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "b.bin",
+            "digest": "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a",
+            "size": 4,
+            "mode": 493
+          },
+          {
+            "path": "docs/a.md",
+            "digest": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            "size": 5,
+            "mode": 420
+          },
+          {
+            "path": "docsx.txt",
+            "digest": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "size": 1,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824": "aGVsbG8=",
+          "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881": "eA==",
+          "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a": "AQIDBA=="
+        },
+        "checksum": "3ff74fdacd1db1b90ef3a9fbcd7b835dace6903ffe58729d7f82a3b08b1c35a4"
+      },
+      "paths": [
+        "missing"
+      ]
+    },
+    "error": "list path not found in snapshot: missing"
+  },
+  {
+    "name": "list refuses a tampered manifest",
+    "request": {
+      "operation": "list",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "b.bin",
+            "digest": "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a",
+            "size": 99,
+            "mode": 493
+          },
+          {
+            "path": "docs/a.md",
+            "digest": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            "size": 5,
+            "mode": 420
+          },
+          {
+            "path": "docsx.txt",
+            "digest": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "size": 1,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824": "aGVsbG8=",
+          "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881": "eA==",
+          "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a": "AQIDBA=="
+        },
+        "checksum": "3ff74fdacd1db1b90ef3a9fbcd7b835dace6903ffe58729d7f82a3b08b1c35a4"
+      }
+    },
+    "error": "manifest checksum mismatch"
   }
 ]

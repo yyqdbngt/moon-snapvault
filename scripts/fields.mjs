@@ -48,6 +48,8 @@ function inventory(engine) {
     ['audit (corrupt)', {operation: 'audit', snapshot: damage(plainSnapshot)}],
     ['restore', {operation: 'restore', snapshot: plainSnapshot}],
     ['restore (selected)', {operation: 'restore', snapshot: plainSnapshot, paths: ['a.txt']}],
+    ['list', {operation: 'list', snapshot: plainSnapshot}],
+    ['list (selected)', {operation: 'list', snapshot: plainSnapshot, paths: ['a.txt']}],
     // `diff` takes `old` and `new`; `locate` and `squash` take one `snapshot`. The first version
     // of this inventory guessed `before`/`after` and `snapshots`, which the fixtures would have
     // shown me had I read them rather than the interface.

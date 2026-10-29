@@ -5,6 +5,17 @@
 Module version in `main` is 0.3.0; `moon add yyqdbngt/moon_snapvault` still
 resolves the published 0.2.0 until a release is published.
 
+### Listing a snapshot cheaply
+
+- `list` verifies the manifest checksum and structure and reports the tree -
+  `format`, `parent`, `files` (path, size, mode, digest, in manifest order),
+  `selected`, `total_files`, `total_bytes`. It reads no payload byte and walks
+  no chain, because a format 3 manifest is complete: a delta lists without its
+  parents, which is the case that makes `audit` expensive and `list` cheap.
+- `paths` selects by the same whole-component rule as restore; a selection that
+  matches nothing is an error naming the path. The invariants, fields
+  documentation, fuzz oracle and fixtures all cover the new operation.
+
 ### Incremental snapshots (format 3)
 
 - A snapshot may declare `parent` and store only the objects its chain does not

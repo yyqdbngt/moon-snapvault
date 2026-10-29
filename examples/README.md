@@ -16,6 +16,7 @@ node _build/js/release/build/cmd/main/main.js examples/scenario-1.json
 | `incremental.json` | format 3: a delta that stores only the object its parent lacks, and reports what it reused |
 | `audit.json` | the integrity report, including how many objects were checked |
 | `restore.json` | the payloads a restore hands back, with `format` and `encoding` |
+| `list.json` | the manifest described cheaply - no payload read, no chain walked |
 | `diff.json` | added, removed and modified paths between two snapshots |
 | `squash.json` | a chain folded into one self-contained snapshot |
 | `retention.json` | keeping a delta promotes its parent to `required_snapshots`, because the delta cannot be read without it |

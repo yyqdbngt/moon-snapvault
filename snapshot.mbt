@@ -976,6 +976,52 @@ fn refusal_reason(report : Value) -> String {
 }
 
 ///|
+
+///|
+/// The snapshot's tree, cheaply: the manifest checksum and structure are
+/// verified, no payload byte is read, and no chain is walked. A format 3
+/// manifest is complete by construction, so listing never needs the parent
+/// links - that is what makes this affordable where `audit` is not.
+fn list_with(snapshot : Value, selection : Selection) -> Value raise {
+  let (version, parent, listed) = manifest(snapshot)
+  let missing = unresolved_selection(selection, listed)
+  if !missing.is_empty() {
+    raise InputError("list path not found in snapshot: " + missing[0])
+  }
+  let files : Array[Value] = []
+  let mut total_bytes = 0.0
+  for file in listed {
+    let path = str(get(file, "path"))
+    if selects(selection, path) {
+      let size = num(get(file, "size"))
+      total_bytes += size
+      files.push(
+        record([
+          ("path", String(path)),
+          ("size", Number(size)),
+          ("mode", Number(num(get(file, "mode")))),
+          ("digest", String(str(get(file, "digest")))),
+        ]),
+      )
+    }
+  }
+  record([
+    ("format", Number(version.to_double())),
+    (
+      "parent",
+      match parent {
+        Some(id) => String(id)
+        None => Null
+      },
+    ),
+    ("files", Array(files)),
+    ("selected", Number(files.length().to_double())),
+    ("total_files", Number(listed.length().to_double())),
+    ("total_bytes", Number(total_bytes)),
+  ])
+}
+
+///|
 fn restore_with(
   snapshot : Value,
   parents : Array[Value],
@@ -1106,6 +1152,7 @@ pub fn run(request : Value) -> Value raise {
         format=requested_format(request),
       )
     "audit" => audit_with(get(request, "snapshot"), request_parents(request))
+    "list" => list_with(get(request, "snapshot"), request_selection(request))
     "diff" => diff_snapshots(get(request, "old"), get(request, "new"))
     "restore" =>
       restore_with(

@@ -218,7 +218,7 @@ that turned out to be wrong.
 
 ### The reported numbers have to add up
 
-`scripts/invariants.mjs` asserts 108 arithmetic relations between fields the operations report -
+`scripts/invariants.mjs` asserts 123 arithmetic relations between fields the operations report -
 statements a reader could check with a calculator, and statements the documentation makes implicitly
 by reporting both numbers. They are worth a check of their own because the failure is not a crash:
 the tool reports two numbers, they disagree, and the reader has no way to know which is wrong.

@@ -298,6 +298,14 @@ def run_iteration(rng, index):
            if restored['encoding'] == 'base64'
            else {f['path']: bytes(f['bytes']) for f in restored['files']})
     check(tag + ' restore/bytes', got == {p: c for p, (c, _) in expected.items()})
+
+    # --- list: the manifest described without reading payloads ---------------
+    listed, _ = call({'operation': 'list', 'snapshot': base}, label='list-base')
+    check(tag + ' list/paths', [f['path'] for f in listed['files']] == sorted(expected))
+    check(tag + ' list/counts', listed['selected'] == listed['total_files'] == len(expected))
+    check(tag + ' list/bytes', listed['total_bytes'] == sum(len(c) for c, _ in expected.values()))
+    check(tag + ' list/digests', all(f['digest'] == sha(expected[f['path']][0])
+        for f in listed['files']))
     check(tag + ' restore/encoding',
           restored['encoding'] == ('decimal' if base_format == 1 else 'base64'),
           restored['encoding'])

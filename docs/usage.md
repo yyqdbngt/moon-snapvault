@@ -68,6 +68,33 @@ On the command line the flag repeats: `restore SNAPSHOT DEST --path docs --path 
 It does not take several values after one flag, because the arguments after it are where
 parent snapshots go.
 
+## Listing a snapshot's tree
+
+```json
+{
+  "operation": "list",
+  "snapshot": {"version": 2, "files": [], "objects": {}, "checksum": "..."}
+}
+```
+
+`list` verifies the manifest checksum and structure, then reports the tree. It
+reads no payload and walks no chain: a format 3 manifest is complete, so listing
+a delta needs no parents. That is what makes it affordable where `audit` is not.
+
+| Field | Meaning |
+|---|---|
+| format | the snapshot's format (1, 2 or 3) |
+| parent | the parent checksum of a format 3 delta, else null |
+| files | every selected entry - path, size, mode, digest - in manifest order |
+| selected | how many entries the selection kept |
+| total_files | entries in the whole manifest |
+| total_bytes | the summed size of the listed entries |
+
+`paths` selects by the same whole-component rule as restore, and a selection
+that matches nothing is an error naming the path, not a quiet empty list. A
+checksum mismatch raises `manifest checksum mismatch` instead of listing
+anything, so a successful list is a statement that the manifest is intact.
+
 ## Retention plan fields
 
 | Field | Meaning |

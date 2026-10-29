@@ -1,0 +1,15 @@
+{
+  "format": 2,
+  "parent": null,
+  "files": [
+    {
+      "path": "notes.txt",
+      "size": 3,
+      "mode": 420,
+      "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed"
+    }
+  ],
+  "selected": 1,
+  "total_files": 1,
+  "total_bytes": 3
+}

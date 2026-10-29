@@ -124,6 +124,34 @@ for (const [label, paths] of [['whole', undefined], ['docs only', ['docs']],
     JSON.stringify(result.files.map((file) => file.path)));
 }
 
+// --- list ------------------------------------------------------------------
+// list reports the same selection arithmetic restore does, without reading a
+// payload: the byte total is the sum of the sizes it lists, and every digest it
+// names is the manifest's own.
+for (const [label, paths] of [['whole', undefined], ['docs only', ['docs']],
+  ['one file', ['a.txt']]]) {
+  const result = paths === undefined
+    ? engine({operation: 'list', snapshot: tree})
+    : engine({operation: 'list', snapshot: tree, paths});
+  const where = 'list (' + label + ')';
+  ok(where + ' selected = files.length',
+    result.selected === result.files.length,
+    JSON.stringify({selected: result.selected, files: result.files.length}));
+  ok(where + ' total_files = the manifest file count',
+    result.total_files === tree.files.length,
+    JSON.stringify({total: result.total_files, manifest: tree.files.length}));
+  ok(where + ' a subset is never larger than the whole',
+    result.files.length <= result.total_files, JSON.stringify(result.files.length));
+  ok(where + ' total_bytes = the listed sizes',
+    result.total_bytes === result.files.reduce((sum, file) => sum + file.size, 0),
+    JSON.stringify({total: result.total_bytes}));
+  ok(where + ' every listed entry is the manifest entry',
+    result.files.every((file) => tree.files.some((entry) =>
+      entry.path === file.path && entry.digest === file.digest
+        && entry.size === file.size)),
+    JSON.stringify(result.files.map((file) => file.path)));
+}
+
 // --- squash ---------------------------------------------------------------
 const folded = engine({operation: 'squash', snapshot: plain(tree)});
 ok('squash reports the file count of the snapshot it produced',
@@ -258,4 +286,4 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(`Invariants: ${checked.length} arithmetic relations hold across create, audit, `
-  + 'restore, squash and retention');
+  + 'restore, list, squash and retention');
