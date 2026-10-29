@@ -42,10 +42,14 @@ function inventory(engine) {
   const third = engine({...base, format: 3}).snapshot;
   const parent = plain(plainSnapshot);
 
+  const authed = engine({...base, key: 'probe-key'}).snapshot;
+
   const requests = [
     ['create', base],
+    ['create (keyed)', {...base, key: 'probe-key'}],
     ['audit', {operation: 'audit', snapshot: plainSnapshot}],
     ['audit (corrupt)', {operation: 'audit', snapshot: damage(plainSnapshot)}],
+    ['audit (keyed)', {operation: 'audit', snapshot: authed, key: 'probe-key'}],
     ['restore', {operation: 'restore', snapshot: plainSnapshot}],
     ['restore (selected)', {operation: 'restore', snapshot: plainSnapshot, paths: ['a.txt']}],
     ['list', {operation: 'list', snapshot: plainSnapshot}],

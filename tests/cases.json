@@ -217,7 +217,8 @@
       "referenced_objects": 0,
       "unreferenced_objects": 1,
       "issues/0/reason": "digest mismatch",
-      "issues/0/path": null
+      "issues/0/path": null,
+      "authenticated": null
     },
     "error": false
   },
@@ -254,7 +255,8 @@
       "objects_total": 2,
       "objects_checked": 2,
       "referenced_objects": 1,
-      "unreferenced_objects": 1
+      "unreferenced_objects": 1,
+      "authenticated": null
     },
     "error": false
   },
@@ -560,7 +562,8 @@
       "valid": true,
       "format": 1,
       "objects_total": 1,
-      "objects_checked": 1
+      "objects_checked": 1,
+      "authenticated": null
     },
     "error": false
   },
@@ -801,7 +804,8 @@
       "objects_inherited": 1,
       "objects_checked": 2,
       "referenced_objects": 2,
-      "unreferenced_objects": 0
+      "unreferenced_objects": 0,
+      "authenticated": null
     },
     "error": false
   },
@@ -1242,7 +1246,8 @@
       "chain_depth": 1,
       "objects_total": 2,
       "objects_inherited": 0,
-      "objects_checked": 2
+      "objects_checked": 2,
+      "authenticated": null
     },
     "error": false
   },
@@ -1872,7 +1877,8 @@
       "chain_depth": 2,
       "objects_total": 1,
       "objects_inherited": 1,
-      "objects_checked": 2
+      "objects_checked": 2,
+      "authenticated": null
     },
     "error": false
   },
@@ -2615,7 +2621,8 @@
       "objects_inherited": 0,
       "objects_checked": 1,
       "referenced_objects": 1,
-      "unreferenced_objects": 0
+      "unreferenced_objects": 0,
+      "authenticated": null
     },
     "error": false
   },
@@ -2676,7 +2683,8 @@
       "objects_inherited": 1,
       "objects_checked": 2,
       "referenced_objects": 2,
-      "unreferenced_objects": 0
+      "unreferenced_objects": 0,
+      "authenticated": null
     },
     "error": false
   },
@@ -3281,5 +3289,115 @@
       }
     },
     "error": "manifest checksum mismatch"
+  },
+  {
+    "name": "create with a key writes an authentication block",
+    "request": {
+      "files": [
+        {
+          "path": "notes.txt",
+          "text": "one"
+        }
+      ],
+      "key": "hunter2"
+    },
+    "expected": {
+      "snapshot/auth/scheme": "hmac-sha256",
+      "snapshot/auth/hmac": "f3fc8187a9ad4170eb86aae489f13a4289aa2aee7fc09e86e9ab8a123a33f24f"
+    },
+    "error": false
+  },
+  {
+    "name": "audit with the right key authenticates",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "notes.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "a7ebc4f421e2468403ac10c1e8379b522e50a8d524322617a4d439328b2bcf70",
+        "auth": {
+          "scheme": "hmac-sha256",
+          "hmac": "f3fc8187a9ad4170eb86aae489f13a4289aa2aee7fc09e86e9ab8a123a33f24f"
+        }
+      },
+      "key": "hunter2"
+    },
+    "expected": {
+      "valid": true,
+      "authenticated": true
+    },
+    "error": false
+  },
+  {
+    "name": "audit without a key leaves authentication unverified",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "notes.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "a7ebc4f421e2468403ac10c1e8379b522e50a8d524322617a4d439328b2bcf70",
+        "auth": {
+          "scheme": "hmac-sha256",
+          "hmac": "f3fc8187a9ad4170eb86aae489f13a4289aa2aee7fc09e86e9ab8a123a33f24f"
+        }
+      }
+    },
+    "expected": {
+      "valid": true,
+      "authenticated": null
+    },
+    "error": false
+  },
+  {
+    "name": "audit with a wrong key refuses",
+    "request": {
+      "operation": "audit",
+      "snapshot": {
+        "version": 2,
+        "files": [
+          {
+            "path": "notes.txt",
+            "digest": "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+            "size": 3,
+            "mode": 420
+          }
+        ],
+        "objects": {
+          "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed": "b25l"
+        },
+        "checksum": "a7ebc4f421e2468403ac10c1e8379b522e50a8d524322617a4d439328b2bcf70",
+        "auth": {
+          "scheme": "hmac-sha256",
+          "hmac": "f3fc8187a9ad4170eb86aae489f13a4289aa2aee7fc09e86e9ab8a123a33f24f"
+        }
+      },
+      "key": "wrong"
+    },
+    "expected": {
+      "valid": false,
+      "authenticated": false,
+      "issues/0/reason": "authentication failed"
+    },
+    "error": false
   }
 ]

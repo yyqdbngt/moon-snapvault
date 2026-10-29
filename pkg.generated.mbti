@@ -8,15 +8,19 @@ import {
 // Values
 pub fn audit_snapshot(Value) -> Value raise
 
-pub fn create_snapshot(Array[Value], previous? : Value, parents? : Array[Value], known_objects? : Array[String], format? : Int32) -> Value raise
+pub fn create_snapshot(Array[Value], previous? : Value, parents? : Array[Value], known_objects? : Array[String], format? : Int32, key? : String?) -> Value raise
 
 pub fn diff_snapshots(Value, Value) -> Value raise
 
 pub fn digest(Bytes) -> String
 
+pub fn digest_raw(Bytes) -> Bytes
+
 pub fn execute(Json) -> Json raise
 
 pub fn from_json(Json) -> Value
+
+pub fn hmac_sha256(Bytes, Bytes) -> String
 
 pub fn parse_value(StringView) -> Value raise
 

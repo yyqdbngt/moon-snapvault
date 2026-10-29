@@ -4,7 +4,7 @@ Each JSON snapshot is self contained, even when previous content is unchanged; `
 
 The host adapter caps a backup at 8 MiB of source bytes by default (`SNAPVAULT_ADAPTER_LIMIT_BYTES` overrides it); the core JSON CLI caps input at 16 MiB. Regular files only: no symlinks, empty-directory preservation, timestamps, ACLs or special files.
 
-Audits cover every stored object, referenced or not, and cross-check each key against its SHA-256. `valid` therefore means "this snapshot's bytes are internally consistent", not "this snapshot is authentic": manifests are integrity checked, not authenticated or encrypted.
+Audits cover every stored object, referenced or not, and cross-check each key against its SHA-256. `valid` therefore means "this snapshot's bytes are internally consistent". A snapshot created with a `key` additionally carries an HMAC-SHA256 block over the same bytes the checksum covers; `audit` and `restore` verify it when the caller supplies the key, and one failing link fails a whole chain. Without the key the block is reported as unverified (`authenticated: null`), not treated as absent. Manifests are still not encrypted, and a caller who never supplies a key gets integrity alone.
 
 A format 3 delta stores only the payloads its chain lacks, but its manifest is
 still complete, so the snapshot describes its tree without the chain. Reading a

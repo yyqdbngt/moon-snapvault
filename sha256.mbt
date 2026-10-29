@@ -99,7 +99,11 @@ fn sha256_absorb(
 
 ///|
 /// Returns the lowercase hex SHA-256 of `bytes`.
-pub fn digest(bytes : Bytes) -> String {
+
+///|
+/// The 32 raw digest bytes. HMAC needs the raw output: hashing the hex text
+/// would compute a different, incorrect construction.
+pub fn digest_raw(bytes : Bytes) -> Bytes {
   let state = sha256_init.copy()
   let w = FixedArray::make(64, 0U)
   let length = bytes.length()
@@ -126,12 +130,25 @@ pub fn digest(bytes : Bytes) -> String {
   if tail_length == 128 {
     sha256_absorb(state, w, padded, 64)
   }
-  let mut out = ""
-  for i = 0; i < 8; i = i + 1 {
+  let out : FixedArray[Byte] = FixedArray::make(32, b'\x00')
+  for i in 0..<8 {
     let word = state[i]
-    for shift = 28; shift >= 0; shift = shift - 4 {
-      out += sha256_digits[((word >> shift) & 0xFU).reinterpret_as_int()]
+    for step = 0; step < 4; step = step + 1 {
+      out[i * 4 + step] = ((word >> (24 - step * 8)) & 0xFFU)
+        .reinterpret_as_int()
+        .to_byte()
     }
+  }
+  Bytes::from_array(out)
+}
+
+///|
+pub fn digest(bytes : Bytes) -> String {
+  let raw = digest_raw(bytes)
+  let mut out = ""
+  for i in 0..<32 {
+    out += sha256_digits[raw[i].to_int() >> 4]
+    out += sha256_digits[raw[i].to_int() & 0xF]
   }
   out
 }

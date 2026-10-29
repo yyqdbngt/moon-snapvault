@@ -68,6 +68,30 @@ On the command line the flag repeats: `restore SNAPSHOT DEST --path docs --path 
 It does not take several values after one flag, because the arguments after it are where
 parent snapshots go.
 
+## Authenticating a snapshot
+
+A manifest checksum needs no secret: anyone who rewrites a snapshot can recompute
+it. `create` accepts a `key` (1..1024 bytes) and stores an authentication block
+that no one without the key can forge:
+
+| Field | Meaning |
+|---|---|
+| key | the create/audit/restore request field, 1..1024 bytes |
+| auth | the block create writes: `{"scheme": "hmac-sha256", "hmac": <hex>}` |
+| auth/scheme | always `hmac-sha256`; anything else is refused |
+| auth/hmac | HMAC-SHA256 (RFC 2104) over exactly the bytes the checksum covers |
+| authenticated | audit report: `true` verified with the key, `false` a mismatch, `null` nothing to verify or no key supplied |
+
+`audit` and `restore` accept the same `key`. A mismatch is an issue
+(`authentication failed`), makes `audit` return `valid: false`, and makes
+`restore` refuse before writing anything. Every link of a chain that carries a
+block is verified with the key, and one failing link fails the chain. Auditing
+without a key still checks integrity and reports `authenticated: null` - the
+report says what was verified and what was not, rather than pretending.
+
+The block is written after the checksum and is not part of what it authenticates,
+so readers from before the field existed ignore it and keep working.
+
 ## Listing a snapshot's tree
 
 ```json

@@ -5,6 +5,22 @@
 Module version in `main` is 0.3.0; `moon add yyqdbngt/moon_snapvault` still
 resolves the published 0.2.0 until a release is published.
 
+### Optional HMAC authentication
+
+- `create` accepts a `key` (1..1024 bytes) and writes an `auth` block -
+  `{scheme: "hmac-sha256", hmac: ...}` - over exactly the bytes the checksum
+  covers. The block sits outside what it authenticates, so older readers ignore
+  it and keep working.
+- `audit` and `restore` accept the same `key` and report `authenticated`:
+  `true` verified, `false` a mismatch (an issue, `valid: false`, and restore
+  refuses), `null` when the snapshot carries no block or no key was supplied.
+  Every chain link carrying a block is verified; one failing link fails the chain.
+- HMAC-SHA256 (RFC 2104) is implemented in `hmac.mbt` over the module's own
+  SHA-256, with the raw-digest path factored out as `digest_raw`; the four
+  RFC 4231 vectors are white-box tests, and they caught two real defects in the
+  first implementation (the inner digest and the condensed oversized key were
+  both hashed from hex text instead of raw bytes).
+
 ### Listing a snapshot cheaply
 
 - `list` verifies the manifest checksum and structure and reports the tree -

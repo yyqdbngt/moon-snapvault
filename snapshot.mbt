@@ -180,7 +180,11 @@ fn content(file : Value) -> Bytes raise {
 ///|
 /// The manifest checksum. Format 3 binds the parent identity into it, so a delta
 /// cannot be re-pointed at a different base without invalidating the checksum.
-fn checksum(version : Int32, parent : String?, files : Array[Value]) -> String {
+fn checksum_body(
+  version : Int32,
+  parent : String?,
+  files : Array[Value],
+) -> Bytes {
   let body = if version >= 3 {
     let parent_value = match parent {
       None => Null
@@ -194,7 +198,50 @@ fn checksum(version : Int32, parent : String?, files : Array[Value]) -> String {
   } else {
     record([("version", Number(version.to_double())), ("files", Array(files))])
   }
-  digest(@utf8.encode(canonical(body)))
+  @utf8.encode(canonical(body))
+}
+
+///|
+fn checksum(version : Int32, parent : String?, files : Array[Value]) -> String {
+  digest(checksum_body(version, parent, files))
+}
+
+///|
+/// The authentication block a snapshot carries when it was created with a key.
+/// The HMAC covers exactly the bytes the checksum covers, so anything that
+/// breaks the checksum also breaks the authentication.
+fn auth_block(
+  key : String,
+  version : Int32,
+  parent : String?,
+  files : Array[Value],
+) -> Value {
+  record([
+    ("scheme", String("hmac-sha256")),
+    (
+      "hmac",
+      String(
+        hmac_sha256(@utf8.encode(key), checksum_body(version, parent, files)),
+      ),
+    ),
+  ])
+}
+
+///|
+/// Reads the request's authentication key: absent means no authentication,
+/// an empty string is refused, and anything over 1024 bytes is refused.
+fn auth_key(request : Value) -> String? raise {
+  match get(request, "key") {
+    Null => None
+    String(text) => {
+      let size = @utf8.encode(text).length()
+      if size < 1 || size > 1024 {
+        raise InputError("authentication key must be 1..1024 bytes")
+      }
+      Some(text)
+    }
+    _ => raise InputError("key must be a string")
+  }
 }
 
 ///|
@@ -400,10 +447,69 @@ fn payload_for(
 ///|
 /// `parents` supplies the chain for a format 3 delta; it is empty for a self
 /// contained snapshot.
-fn audit_with(snapshot : Value, parents : Array[Value]) -> Value raise {
+fn audit_with(
+  snapshot : Value,
+  parents : Array[Value],
+  key~ : String? = None,
+) -> Value raise {
   let (version, parent, files) = manifest(snapshot)
   let (links, missing) = resolve_chain(snapshot, parents)
   let issues : Array[Value] = []
+  // An authentication block covers exactly the bytes the checksum covers, so a
+  // tampered manifest dies at the checksum first. The HMAC still matters: an
+  // attacker who can rewrite a snapshot can recompute that checksum, but cannot
+  // forge the block without the key. Without a key the block is left unverified
+  // and reported as null rather than silently treated as absent.
+  let mut authenticated : Bool? = None
+  // resolve_chain reduces each link to a summary; the authentication block
+  // lives on the original values, looked back up by checksum.
+  let by_id : Map[String, Value] = Map([])
+  for candidate in parents {
+    match get(candidate, "checksum") {
+      String(id) =>
+        if is_object_id(id) && !by_id.contains(id) {
+          by_id[id] = candidate
+        }
+      _ => ()
+    }
+  }
+  by_id[str(get(snapshot, "checksum"))] = snapshot
+  for index, link in links {
+    let link_value = match by_id.get(link.checksum) {
+      Some(value) => value
+      None => continue
+    }
+    match get(link_value, "auth") {
+      Null => ()
+      auth_value => {
+        if get(auth_value, "scheme") != String("hmac-sha256") {
+          raise InputError("unsupported authentication scheme")
+        }
+        let claimed = str(get(auth_value, "hmac"))
+        if !is_object_id(claimed) {
+          raise InputError("invalid authentication value")
+        }
+        let (link_version, link_parent, link_files) = manifest(link_value)
+        match key {
+          Some(text) => {
+            let expected = hmac_sha256(
+              @utf8.encode(text),
+              checksum_body(link_version, link_parent, link_files),
+            )
+            if expected != claimed {
+              // Any link on the chain failing authentication fails the whole
+              // chain, whatever the tip alone would have reported.
+              issues.push(issue(Null, claimed, "authentication failed"))
+              authenticated = Some(false)
+            } else if index == 0 {
+              authenticated = Some(true)
+            }
+          }
+          None => ()
+        }
+      }
+    }
+  }
   let referenced : Map[String, Bool] = Map([])
   for file in files {
     referenced[str(get(file, "digest"))] = true
@@ -479,6 +585,13 @@ fn audit_with(snapshot : Value, parents : Array[Value]) -> Value raise {
     ("objects_checked", Number(checked_count.to_double())),
     ("referenced_objects", Number(referenced.length().to_double())),
     ("unreferenced_objects", Number(unreferenced.to_double())),
+    (
+      "authenticated",
+      match authenticated {
+        Some(value) => Bool(value)
+        None => Null
+      },
+    ),
   ])
 }
 
@@ -555,6 +668,7 @@ pub fn create_snapshot(
   parents~ : Array[Value] = [],
   known_objects~ : Array[String] = [],
   format~ : Int32 = 2,
+  key~ : String? = None,
 ) -> Value raise {
   if format != 1 && format != 2 && format != 3 {
     raise InputError("unsupported snapshot format")
@@ -679,6 +793,14 @@ pub fn create_snapshot(
   fields.push(("files", Array(files)))
   fields.push(("objects", Object(objects)))
   fields.push(("checksum", String(checksum(format, parent_id, files))))
+  // The authentication block is written after the checksum and covers the same
+  // body, so it is not part of what it authenticates. Readers that predate it
+  // ignore an unknown field and keep working.
+  match key {
+    Some(text) =>
+      fields.push(("auth", auth_block(text, format, parent_id, files)))
+    None => ()
+  }
   let snapshot = record(fields)
   ignore(manifest(snapshot))
   record([
@@ -1026,8 +1148,9 @@ fn restore_with(
   snapshot : Value,
   parents : Array[Value],
   selection : Selection,
+  key~ : String? = None,
 ) -> Value raise {
-  let report = audit_with(snapshot, parents)
+  let report = audit_with(snapshot, parents, key~)
   if get(report, "valid") != Bool(true) {
     // The report already knows *why*, and the reasons call for different actions: a missing
     // parent is a chain problem - pass the link, or fold the chain first - while a mismatched
@@ -1150,8 +1273,14 @@ pub fn run(request : Value) -> Value raise {
         parents=request_parents(request),
         known_objects=request_known_objects(request),
         format=requested_format(request),
+        key=auth_key(request),
       )
-    "audit" => audit_with(get(request, "snapshot"), request_parents(request))
+    "audit" =>
+      audit_with(
+        get(request, "snapshot"),
+        request_parents(request),
+        key=auth_key(request),
+      )
     "list" => list_with(get(request, "snapshot"), request_selection(request))
     "diff" => diff_snapshots(get(request, "old"), get(request, "new"))
     "restore" =>
@@ -1159,6 +1288,7 @@ pub fn run(request : Value) -> Value raise {
         get(request, "snapshot"),
         request_parents(request),
         request_selection(request),
+        key=auth_key(request),
       )
     "assemble" =>
       assemble_with(

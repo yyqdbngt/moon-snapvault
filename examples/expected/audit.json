@@ -9,5 +9,6 @@
   "objects_inherited": 0,
   "objects_checked": 1,
   "referenced_objects": 1,
-  "unreferenced_objects": 0
+  "unreferenced_objects": 0,
+  "authenticated": null
 }
